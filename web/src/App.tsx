@@ -8,8 +8,9 @@ import { RecipesPage } from "./pages/RecipesPage.js";
 import { AnalysisPage } from "./pages/AnalysisPage.js";
 import { ClientsPage } from "./pages/ClientsPage.js";
 import { RouterPage } from "./pages/RouterPage.js";
+import { EnergyPage } from "./pages/PowerPage.js";
 
-type PageId = "overview" | "node" | "models" | "serve" | "recipes" | "analysis" | "clients" | "router" | "alerts" | "settings";
+type PageId = "overview" | "node" | "models" | "serve" | "recipes" | "analysis" | "clients" | "router" | "energy" | "alerts" | "settings";
 
 const NAV: Array<{ sec?: string; id?: PageId; label?: string }> = [
   { sec: "Fleet" },
@@ -24,6 +25,7 @@ const NAV: Array<{ sec?: string; id?: PageId; label?: string }> = [
   { id: "router", label: "Router" },
   { id: "clients", label: "Clients" },
   { id: "analysis", label: "Analysis" },
+  { id: "energy", label: "Energy" },
   { sec: "Coming in later milestones" },
   { id: "alerts", label: "Alerts" },
   { id: "settings", label: "Settings" },
@@ -102,6 +104,7 @@ export function App() {
           {page === "analysis" && <AnalysisPage />}
           {page === "clients" && <ClientsPage />}
           {page === "router" && <RouterPage />}
+          {page === "energy" && <EnergyPage />}
           {page === "alerts" && (
             <div className="panel"><div className="panel-body"><div className="empty">Alerts ship at M6 — see PLAN.md F5a.</div></div></div>
           )}

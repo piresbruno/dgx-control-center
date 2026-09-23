@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { LiveNode } from "../api/ws.js";
 import { nodeSummary, statusPill } from "../App.js";
 import { listDeployments, type DeploymentRecord } from "../api/serving.js";
+import { PowerCard } from "./PowerPage.js";
 
 export interface NodePageProps {
   node: LiveNode | null;
@@ -60,7 +61,9 @@ export function NodePage({ node, nodes, history, onSelectNode }: NodePageProps) 
         <Panel title="Disk & power">
           <GaugeRow label="disk" value={pctOr(storage?.["usedPct"])} />
           <GaugeRow label="watts" value={wattsOr(power?.["watts"])} />
-          <div className="empty">Clock profiles land at M5.</div>
+        </Panel>
+        <Panel title="Power & clocks">
+          <PowerCard sparkId={node.sparkId} />
         </Panel>
       </div>
 
