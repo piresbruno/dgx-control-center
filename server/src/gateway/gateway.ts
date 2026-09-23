@@ -39,6 +39,8 @@ export interface GatewayDeps {
   rrCounters?: Map<string, number>;
   /** Per-request hook (request recorder lands in its own task). */
   onAttempt?: (info: { alias: string; nodeId: string; port: number; status: number | null; error?: string; startedAt: number; endedAt: number }) => void;
+  /** Observe response chunks with arrival times (request recorder). */
+  onResponseChunk?: (chunk: string, atMs: number) => void;
 }
 
 export interface GatewayRequest {
@@ -159,7 +161,18 @@ export async function handleGatewayRequest(deps: GatewayDeps, req: GatewayReques
         signal: AbortSignal.timeout(300_000),
       });
       const endedAt = deps.now?.() ?? Date.now();
-      const text = await upstream.text();
+      let text = "";
+      if (upstream.body) {
+        const reader = upstream.body.getReader();
+        const decoder = new TextDecoder();
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          text += chunk;
+          deps.onResponseChunk?.(chunk, deps.now?.() ?? Date.now());
+        }
+      }
       attempts.push({ nodeId: target.nodeId, port: target.port, status: upstream.status });
       deps.onAttempt?.({ alias, nodeId: target.nodeId, port: target.port, status: upstream.status, startedAt, endedAt });
       const headers: Record<string, string> = {};

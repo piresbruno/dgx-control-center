@@ -42,6 +42,31 @@ export const MIGRATIONS: Array<{ version: number; sql: string }> = [
       CREATE INDEX idx_metrics_1d_bucket ON metrics_1d (domain, bucket);
     `,
   },
+  {
+    version: 2,
+    sql: `
+      CREATE TABLE gateway_traces (
+        id                TEXT PRIMARY KEY,
+        ts                INTEGER NOT NULL,
+        client            TEXT,
+        alias             TEXT NOT NULL,
+        model             TEXT,
+        node_id           TEXT,
+        port              INTEGER,
+        status            INTEGER,
+        ttft_ms           INTEGER,
+        duration_ms       INTEGER NOT NULL,
+        stream            INTEGER NOT NULL DEFAULT 0,
+        prompt_tokens     INTEGER,
+        completion_tokens INTEGER,
+        itl               TEXT,
+        attempts          TEXT,
+        error             TEXT
+      );
+      CREATE INDEX idx_traces_ts ON gateway_traces (ts);
+      CREATE INDEX idx_traces_alias ON gateway_traces (alias, ts);
+    `,
+  },
 ];
 
 export function openDb(file: string, now: number = Date.now()): Database.Database {

@@ -33,7 +33,7 @@ describe("db migrations", () => {
 
     const again = openDb(":memory:", 2_000);
     const versions = (again.prepare("SELECT version FROM schema_migrations").all() as Array<{ version: number }>).map((r) => r.version);
-    expect(versions).toEqual([1]);
+    expect(versions).toEqual([1, 2]);
     again.close();
     db.close();
   });
