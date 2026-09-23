@@ -19,6 +19,8 @@ RUN npm run build && npm prune --omit=dev
 FROM node:22-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
+# Node inventories + provisioning shell out to ssh (ADR-0002 bootstrap).
+RUN apt-get update && apt-get install -y --no-install-recommends openssh-client && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/package*.json ./
 COPY --from=build /app/shared/package.json shared/
 COPY --from=build /app/server/package.json server/

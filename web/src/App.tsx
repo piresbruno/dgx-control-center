@@ -2,13 +2,16 @@ import { useState, type ReactElement } from "react";
 import { useLiveSnapshot, type LiveNode } from "./api/ws.js";
 import { OverviewPage } from "./pages/OverviewPage.js";
 import { NodePage } from "./pages/NodePage.js";
+import { ModelsPage } from "./pages/ModelsPage.js";
 
-type PageId = "overview" | "node" | "alerts" | "settings";
+type PageId = "overview" | "node" | "models" | "alerts" | "settings";
 
 const NAV: Array<{ sec?: string; id?: PageId; label?: string }> = [
   { sec: "Fleet" },
   { id: "overview", label: "Overview" },
   { id: "node", label: "Nodes" },
+  { sec: "Model Plane" },
+  { id: "models", label: "Models" },
   { sec: "Coming in later milestones" },
   { id: "alerts", label: "Alerts" },
   { id: "settings", label: "Settings" },
@@ -81,6 +84,7 @@ export function App() {
           {page === "node" && (
             <NodePage node={node} nodes={nodes} history={history} onSelectNode={selectNode} />
           )}
+          {page === "models" && <ModelsPage />}
           {page === "alerts" && (
             <div className="panel"><div className="panel-body"><div className="empty">Alerts ship at M6 — see PLAN.md F5a.</div></div></div>
           )}

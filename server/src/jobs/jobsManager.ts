@@ -143,6 +143,22 @@ export class JobsManager {
     }
   }
 
+  /** Cancel a running job: kill on the agent and mark failed. */
+  cancel(reqId: string): boolean {
+    const job = this.jobs.get(reqId);
+    if (!job || job.state !== "running") return false;
+    this.deps.send(job.nodeId, { type: "job-kill", reqId });
+    const timer = this.timers.get(reqId);
+    if (timer) {
+      clearTimeout(timer);
+      this.timers.delete(reqId);
+    }
+    job.state = "failed";
+    job.endedAt = this.deps.now?.() ?? Date.now();
+    job.output += "[server] cancelled by operator\n";
+    return true;
+  }
+
   isRunning(nodeId: string, kind: string): boolean {
     return (this.byNode.get(nodeId) ?? []).some((reqId) => {
       const job = this.jobs.get(reqId);

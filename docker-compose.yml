@@ -5,9 +5,22 @@ services:
       dockerfile: server/Dockerfile
     ports:
       - "5566:5566"
+    environment:
+      # modelctl reads ~/.config/modelctl — the mounted home paths must match.
+      HOME: /home/${CC_USER:-piresbruno}
+      # ssh resolves ~ from passwd (root in-container) — pass the key explicitly.
+      CC_SSH_IDENTITY: /home/${CC_USER:-piresbruno}/.ssh/id_ed25519
     volumes:
       # ADR-0003: file-backed SQLite + JSON config survive rebuilds here
       - ./config:/app/config
+      # modelctl runs on the dashboard host (uv tool with absolute shebang).
+      # Bind at the SAME host paths so the tool's interpreter resolves.
+      - ${HOME}/.local/share/uv/tools/modelctl:/home/${CC_USER:-piresbruno}/.local/share/uv/tools/modelctl:ro
+      - ${HOME}/.local/share/uv/python:/home/${CC_USER:-piresbruno}/.local/share/uv/python:ro
+      - ${HOME}/.local/bin/modelctl:/usr/local/bin/modelctl:ro
+      - ${HOME}/.config/modelctl:/home/${CC_USER:-piresbruno}/.config/modelctl:ro
+      - ${HOME}/.ssh:/home/${CC_USER:-piresbruno}/.ssh:ro
+      - /mnt/nas:/mnt/nas:ro
     restart: unless-stopped
     # Host networking is the alternative when the gateway must reach
     # loopback-bound engines on this same machine:

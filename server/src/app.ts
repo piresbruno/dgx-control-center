@@ -28,6 +28,8 @@ export interface AppOptions {
   jobsManager?: JobsManager;
   /** Test seam: overrides the SSH run used by modelctl provisioning. */
   provisionTransport?: (script: string) => Promise<{ exitCode: number | null; stdout: string; stderr: string }>;
+  /** SSH identity key passed to every node SSH call (CC_SSH_IDENTITY default). */
+  sshIdentity?: string;
 }
 
 /**
@@ -87,6 +89,16 @@ export function buildApp(opts: AppOptions = {}) {
       return job;
     });
 
+    /** Cancel a running job: job-kill to the agent, record marked failed. */
+    app.post("/api/jobs/:reqId/cancel", async (request, reply) => {
+      const { reqId } = request.params as { reqId: string };
+      const job = jobs.get(reqId);
+      if (!job) return reply.code(404).send({ error: "unknown job" });
+      if (job.state !== "running") return reply.code(409).send({ error: `job already ${job.state}` });
+      jobs.cancel(reqId);
+      return { reqId, state: "failed", reason: "cancelled" };
+    });
+
     // NAS store inventory (modelctl configured against the mounted store).
     app.get("/api/models", async () =>
       modelctl.inventory({ targetId: "nas", args: ["list", "--json"], ttlMs: NAS_TTL_MS }),
@@ -102,7 +114,8 @@ export function buildApp(opts: AppOptions = {}) {
       }
       const transport =
         opts.provisionTransport ??
-        ((script: string) => runSsh({ host: node.lanIp!, user: node.sshUser! }, script, { timeoutMs: 30_000 }));
+        ((script: string) =>
+          runSsh({ host: node.lanIp!, user: node.sshUser! }, script, { timeoutMs: 30_000, identityPath: opts.sshIdentity }));
       return checkModelctl({ host: node.lanIp, user: node.sshUser }, { transport });
     });
 
@@ -116,7 +129,8 @@ export function buildApp(opts: AppOptions = {}) {
       }
       const transport =
         opts.provisionTransport ??
-        ((script: string) => runSsh({ host: node.lanIp!, user: node.sshUser! }, script, { timeoutMs: 300_000 }));
+        ((script: string) =>
+          runSsh({ host: node.lanIp!, user: node.sshUser! }, script, { timeoutMs: 300_000, identityPath: opts.sshIdentity }));
       return provisionModelctl({ host: node.lanIp, user: node.sshUser }, { transport });
     });
 
@@ -131,7 +145,10 @@ export function buildApp(opts: AppOptions = {}) {
       const runNode =
         opts.nodeInventoryRunner ??
         (async (host: string, user: string, args: string[]): Promise<string> => {
-          const result = await runSsh({ host, user }, `modelctl ${args.join(" ")}`, { timeoutMs: 120_000 });
+          const result = await runSsh({ host, user }, `export PATH="$HOME/.local/bin:$PATH"; modelctl ${args.join(" ")}`, {
+            timeoutMs: 120_000,
+            identityPath: opts.sshIdentity,
+          });
           if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `modelctl exited ${result.exitCode}`);
           return result.stdout;
         });
@@ -160,7 +177,7 @@ export function buildApp(opts: AppOptions = {}) {
 
         const transport: BootstrapTransport =
           opts.installTransport ?? {
-            run: (script) => runSsh({ host: node.lanIp!, user: node.sshUser! }, script, { timeoutMs: 120_000 }),
+            run: (script) => runSsh({ host: node.lanIp!, user: node.sshUser! }, script, { timeoutMs: 120_000, identityPath: opts.sshIdentity }),
           };
         const waitHello = async (sparkId: string, timeoutMs: number): Promise<boolean> => {
           const deadline = Date.now() + timeoutMs;

@@ -22,6 +22,8 @@ export interface SshDeps {
   /** Defaults to spawning the system `ssh` binary. */
   spawnImpl?: typeof spawn;
   timeoutMs?: number;
+  /** Explicit identity key (containers run as root: ~ resolves to /root). */
+  identityPath?: string;
 }
 
 export async function runSsh(
@@ -31,6 +33,7 @@ export async function runSsh(
 ): Promise<SshResult> {
   const spawnImpl = deps.spawnImpl ?? spawn;
   const args = [
+    ...(deps.identityPath ? ["-i", deps.identityPath, "-o", "IdentitiesOnly=yes"] : []),
     "-o",
     "BatchMode=yes",
     "-o",

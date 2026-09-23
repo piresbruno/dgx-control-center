@@ -25,6 +25,7 @@ export const jobParamsSchemas = {
   "modelctl-download": z.object({ source: repoId }).strict(),
   "modelctl-sync-local": z.object({ model: repoId }).strict(),
   "modelctl-push": z.object({ model: repoId, host: hostname }).strict(),
+  "modelctl-delete-local": z.object({ model: repoId }).strict(),
 } as const;
 
 export type JobKind = keyof typeof jobParamsSchemas;
@@ -50,6 +51,8 @@ export function jobArgv(kind: string, params: unknown = {}): string[] | null {
       return ["modelctl", "sync-local", p.model!];
     case "modelctl-push":
       return ["modelctl", "push", "--host", p.host!, p.model!];
+    case "modelctl-delete-local":
+      return ["modelctl", "delete-local", p.model!];
     default:
       return null;
   }

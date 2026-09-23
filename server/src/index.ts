@@ -73,7 +73,7 @@ const jobsManager = new JobsManager({
   send: (nodeId, msg) => registryRef.current?.send(nodeId, msg) ?? false,
   isConnected: (nodeId) => registryRef.current?.isConnected(nodeId) ?? false,
 });
-const app = buildApp({ logger: true, nodeDirectory: directory, modelctl, jobsManager });
+const app = buildApp({ logger: true, nodeDirectory: directory, modelctl, jobsManager, sshIdentity: env.CC_SSH_IDENTITY });
 const hub = registerAgentHub(app, hubDeps, (scope) =>
   registerBrowserHub(scope, () => liveState.snapshot(), (cb) => {
     broadcastListeners.add(cb);

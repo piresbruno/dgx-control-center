@@ -11,6 +11,8 @@ export const serverEnvSchema = z.object({
   CC_DB_PATH: z.string().default("config/controlcenter.db"),
   /** Explicit modelctl binary path; probed on PATH then ~/.local/bin when unset. */
   CC_MODELCTL_PATH: z.string().optional(),
+  /** SSH identity key for node bootstrap/inventory (container-safe: no ~ expansion). */
+  CC_SSH_IDENTITY: z.string().optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
