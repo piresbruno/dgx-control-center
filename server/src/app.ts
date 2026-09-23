@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import { readFile } from "node:fs/promises";
+import { Readable } from "node:stream";
 import type { AgentHubDeps } from "./agentHub.js";
 import { registerAgentHub } from "./agentHub.js";
 import { runInstallAgent, type BootstrapTransport } from "./bootstrap/installAgent.js";
@@ -40,6 +41,8 @@ export interface AppOptions {
   provisionTransport?: (script: string) => Promise<{ exitCode: number | null; stdout: string; stderr: string }>;
   /** SSH identity key passed to every node SSH call (CC_SSH_IDENTITY default). */
   sshIdentity?: string;
+  /** Test seam: fetch used by /llm pass-through (defaults to global fetch). */
+  llmFetch?: typeof fetch;
 }
 
 /**
@@ -345,6 +348,49 @@ export function buildApp(opts: AppOptions = {}) {
         });
       const runner = (args: string[]): Promise<string> => runNode(node.lanIp!, node.sshUser!, args);
       return modelctl.inventory({ targetId: `node:${id}`, args: ["list", "--local", "--json"], ttlMs: NODE_TTL_MS, runner });
+    });
+
+    // ── Per-deployment pass-through (M3): proxy to a node's engine port ──
+    const llmFetch = opts.llmFetch ?? fetch;
+    app.all("/llm/node/:id/:port/*", async (request, reply) => {
+      const { id, port } = request.params as { id: string; port: string };
+      const node = nodeDirectory.get(id);
+      if (!node) return reply.code(404).send({ error: "unknown node" });
+      if (!node.lanIp) return reply.code(400).send({ error: "node lacks lanIp" });
+      const portNum = Number(port);
+      if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) {
+        return reply.code(400).send({ error: "invalid port" });
+      }
+      const rest = (request.params as Record<string, string>)["*"] ?? "";
+      const search = new URL(request.url, "http://internal").search;
+      const upstreamUrl = `http://${node.lanIp}:${portNum}/${rest}${search}`;
+      const headers: Record<string, string> = {};
+      const contentType = request.headers["content-type"];
+      if (typeof contentType === "string") headers["content-type"] = contentType;
+      const auth = request.headers.authorization;
+      if (typeof auth === "string") headers.authorization = auth;
+      const hasBody = request.method !== "GET" && request.method !== "HEAD";
+      let upstream: Response;
+      try {
+        upstream = await llmFetch(upstreamUrl, {
+          method: request.method,
+          headers,
+          ...(hasBody ? { body: JSON.stringify(request.body ?? null) } : {}),
+          signal: AbortSignal.timeout(300_000),
+        });
+      } catch (err) {
+        return reply.code(502).send({ error: `upstream unreachable: ${err instanceof Error ? err.message : err}` });
+      }
+      const outHeaders: Record<string, string> = {};
+      for (const h of ["content-type", "cache-control"]) {
+        const v = upstream.headers.get(h);
+        if (v) outHeaders[h] = v;
+      }
+      reply.code(upstream.status).headers(outHeaders);
+      if (upstream.body) {
+        return reply.send(Readable.fromWeb(upstream.body as import("node:stream/web").ReadableStream));
+      }
+      return reply.send();
     });
 
     if (opts.agentHubDeps) {

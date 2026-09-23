@@ -384,3 +384,77 @@ describe("serve deployments API (M3)", () => {
     await app.close();
   });
 });
+
+describe("llm pass-through (M3)", () => {
+  async function engineApp(mode: "json" | "sse" | "down") {
+    const { createServer } = await import("node:http");
+    const engine = createServer((req, res) => {
+      if (mode === "down") {
+        res.destroy();
+        return;
+      }
+      if (req.url?.includes("/v1/chat/completions")) {
+        if (mode === "sse") {
+          res.writeHead(200, { "content-type": "text/event-stream" });
+          res.write('data: {"delta":"a"}\n\n');
+          setTimeout(() => {
+            res.write('data: {"delta":"b"}\n\n');
+            res.write("data: [DONE]\n\n");
+            res.end();
+          }, 20);
+          return;
+        }
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ choices: [{ message: { content: "hello" } }] }));
+        return;
+      }
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ ok: req.headers.authorization ?? null }));
+    });
+    await new Promise<void>((r) => engine.listen(0, "127.0.0.1", r));
+    const port = (engine.address() as { port: number }).port;
+
+    const dir = await testDirectory();
+    const app = buildApp({ nodeDirectory: dir });
+    await dir.upsert({ id: "dgx1", name: "dgx-1", kind: "spark", role: "head", lanIp: "127.0.0.1", sshUser: "piresbruno" });
+    return { app, engine, port };
+  }
+
+  it("proxies JSON requests and passes the authorization header", async () => {
+    const { app, engine, port } = await engineApp("json");
+    const res = await app.inject({
+      method: "GET",
+      url: `/llm/node/dgx1/${port}/health`,
+      headers: { authorization: "Bearer sk-test" },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: "Bearer sk-test" });
+    await app.close();
+    engine.close();
+  });
+
+  it("streams SSE chunks through", async () => {
+    const { app, engine, port } = await engineApp("sse");
+    const res = await app.inject({
+      method: "POST",
+      url: `/llm/node/dgx1/${port}/v1/chat/completions`,
+      payload: { model: "glm", stream: true },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["content-type"]).toContain("text/event-stream");
+    expect(res.body).toContain('{"delta":"a"}');
+    expect(res.body).toContain("[DONE]");
+    await app.close();
+    engine.close();
+  });
+
+  it("502s when the engine is unreachable and 400s invalid ports", async () => {
+    const { app, engine, port } = await engineApp("down");
+    const res = await app.inject({ method: "GET", url: `/llm/node/dgx1/${port}/health` });
+    expect(res.statusCode).toBe(502);
+    expect((await app.inject({ method: "GET", url: "/llm/node/dgx1/notaport/health" })).statusCode).toBe(400);
+    expect((await app.inject({ method: "GET", url: `/llm/node/nope/${port}/health` })).statusCode).toBe(404);
+    await app.close();
+    engine.close();
+  });
+});
