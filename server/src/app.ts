@@ -213,7 +213,10 @@ export function buildApp(opts: AppOptions = {}) {
         const job = d.jobId ? (jobs.get(d.jobId) ?? null) : null;
         const meta = (recipe?.meta ?? null) as { servedName?: string | null; nnodes?: number; workerIp?: string | null; headIp?: string | null } | null;
         const probeParsedAt = d.lastProbe?.parsedAt ?? null;
-        const probeStale = probeParsedAt != null && job?.endedAt != null && probeParsedAt < job.endedAt;
+        // Jobs are in-memory: after a dashboard restart the record survives but
+        // the job record doesn't — fall back to updatedAt as the stale marker.
+        const staleRef = job?.endedAt ?? d.updatedAt;
+        const probeStale = probeParsedAt != null && probeParsedAt < staleRef;
         return joinServeState({
           desired: d.desired,
           orphaned: recipe?.orphaned ?? false,
