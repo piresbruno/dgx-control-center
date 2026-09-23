@@ -14,6 +14,10 @@ import { ModelctlService, resolveModelctlPath } from "./modelctl/service.js";
 import { JobsManager } from "./jobs/jobsManager.js";
 import { RecipeStore } from "./serving/recipes.js";
 import { DeploymentStore } from "./serving/deployments.js";
+import { ServedModelsStore } from "./gateway/servedModels.js";
+import { ClientsStore } from "./gateway/clients.js";
+import { TracesStore } from "./stores/tracesStore.js";
+import { TraceQueries } from "./stores/traceQueries.js";
 import type { AgentRegistry } from "./agentHub.js";
 
 const fakeFleet = process.argv.includes("--fake-fleet");
@@ -76,6 +80,8 @@ const jobsManager = new JobsManager({
   isConnected: (nodeId) => registryRef.current?.isConnected(nodeId) ?? false,
 });
 const recipeStore = new RecipeStore({ filePath: "config/serve-recipes.json" });
+const servedModelsStore = new ServedModelsStore({ filePath: "config/served-models.json" });
+const clientsStore = new ClientsStore({ filePath: "config/clients.json" });
 const deploymentStore = new DeploymentStore({ filePath: "config/serve-deployments.json" });
 const app = buildApp({
   logger: true,
@@ -84,6 +90,11 @@ const app = buildApp({
   jobsManager,
   recipeStore,
   deploymentStore,
+  servedModelsStore,
+  clientsStore,
+  tracesStore: new TracesStore({ db }),
+  traceQueries: new TraceQueries(db),
+  upstreamAuth: env.CC_UPSTREAM_AUTH ?? null,
   sshIdentity: env.CC_SSH_IDENTITY,
 });
 const hub = registerAgentHub(app, hubDeps, (scope) =>

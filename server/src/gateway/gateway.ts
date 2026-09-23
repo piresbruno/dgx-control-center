@@ -12,7 +12,7 @@ export interface GatewayTargetState {
   /** lanIp of the node (proxy target host). */
   host: string | null;
   /** Observed deployment state ("healthy" | ... ) for ranking. */
-  state: string;
+  state: string | undefined;
 }
 
 export type HealthOf = (t: ServedModelTarget) => TargetHealth;

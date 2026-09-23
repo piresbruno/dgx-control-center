@@ -25,7 +25,7 @@ export interface ServedModelConfig {
   /** Ordered fallback chain; healthy-first ranking reorders at request time. */
   targets: ServedModelTarget[];
   /** Router-managed (llama-swap parity): spin up on first request, stop on idle. */
-  onDemand?: { recipeId: string; idleStopS?: number } | null;
+  onDemand?: { recipeId: string; idleStopS?: number | null } | null;
   createdAt: number;
   updatedAt: number;
 }

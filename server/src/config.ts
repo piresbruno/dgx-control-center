@@ -13,6 +13,7 @@ export const serverEnvSchema = z.object({
   CC_MODELCTL_PATH: z.string().optional(),
   /** SSH identity key for node bootstrap/inventory (container-safe: no ~ expansion). */
   CC_SSH_IDENTITY: z.string().optional(),
+  CC_UPSTREAM_AUTH: z.string().optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

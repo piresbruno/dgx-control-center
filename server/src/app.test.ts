@@ -458,3 +458,114 @@ describe("llm pass-through (M3)", () => {
     engine.close();
   });
 });
+
+describe("gateway /v1 + analysis API (M4)", () => {
+  async function gatewayApp() {
+    const { createServer } = await import("node:http");
+    const engine = createServer((req, res) => {
+      if (req.url?.includes("/v1/chat/completions")) {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ choices: [{ message: { content: "hi" } }], usage: { prompt_tokens: 3, completion_tokens: 4 } }));
+        return;
+      }
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end("{}");
+    });
+    await new Promise<void>((r) => engine.listen(0, "127.0.0.1", r));
+    const port = (engine.address() as { port: number }).port;
+
+    const dir = await testDirectory();
+    const { ServedModelsStore } = await import("./gateway/servedModels.js");
+    const { ClientsStore } = await import("./gateway/clients.js");
+    const { openDb } = await import("./stores/db.js");
+    const { TracesStore } = await import("./stores/tracesStore.js");
+    const { TraceQueries } = await import("./stores/traceQueries.js");
+    const tmp = await mkdtemp(join(tmpdir(), "cc-gw-"));
+    const db = openDb(join(tmp, "t.db"), 0);
+    const served = new ServedModelsStore({ filePath: join(tmp, "sm.json") });
+    served.upsert({ alias: "glm", targets: [{ nodeId: "dgx1", port }] });
+    const clients = new ClientsStore({ filePath: join(tmp, "clients.json") });
+    const { key } = clients.create({ name: "tester" });
+    const traces = new TracesStore({ db });
+    const queries = new TraceQueries(db);
+    await dir.upsert({ id: "dgx1", name: "dgx-1", kind: "spark", role: "head", lanIp: "127.0.0.1", sshUser: "u" });
+    const app = buildApp({
+      nodeDirectory: dir,
+      servedModelsStore: served,
+      clientsStore: clients,
+      tracesStore: traces,
+      traceQueries: queries,
+      upstreamAuth: "Bearer upstream",
+    });
+    return { app, key, traces, served, clients };
+  }
+
+  it("authenticates, routes, records a trace with usage", async () => {
+    const { app, key, traces } = await gatewayApp();
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers: { authorization: `Bearer ${key}` },
+      payload: { model: "glm", messages: [] },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(traces.count()).toBe(1);
+    const trace = traces.list()[0]!;
+    expect(trace).toMatchObject({ alias: "glm", client: "tester", status: 200, promptTokens: 3, completionTokens: 4 });
+    expect(trace.nodeId).toBe("dgx1");
+    await app.close();
+  });
+
+  it("401s bad keys (no trace recorded) and 404s unknown aliases with served list", async () => {
+    const { app, traces, key } = await gatewayApp();
+    const bad = await app.inject({ method: "POST", url: "/v1/chat/completions", headers: { authorization: "Bearer nope" }, payload: { model: "glm" } });
+    expect(bad.statusCode).toBe(401);
+    const unknown = await app.inject({ method: "POST", url: "/v1/chat/completions", headers: { authorization: `Bearer ${key}` }, payload: { model: "ghost" } });
+    expect(unknown.statusCode).toBe(404);
+    expect(JSON.parse(unknown.body).error.served).toEqual(["glm"]);
+    // Rejected requests are recorded too — they count toward error rates.
+    expect(traces.count()).toBe(2);
+    expect(traces.list().map((t) => t.status).sort()).toEqual([401, 404]);
+    await app.close();
+  });
+
+  it("manages served models and clients over REST", async () => {
+    const { app, served, clients, key } = await gatewayApp();
+    const models = await app.inject({ method: "GET", url: "/api/gateway/served-models" });
+    expect(models.json().models.map((m: { alias: string }) => m.alias)).toEqual(["glm"]);
+
+    const created = await app.inject({ method: "POST", url: "/api/gateway/served-models", payload: { alias: "qwen", targets: [{ nodeId: "dgx1", port: 9999 }] } });
+    expect(created.statusCode).toBe(201);
+    const dup = await app.inject({ method: "POST", url: "/api/gateway/served-models", payload: { alias: "glm", targets: [] } });
+    expect(dup.statusCode).toBe(409);
+
+    const client = await app.inject({ method: "POST", url: "/api/gateway/clients", payload: { name: "ci", scopes: ["qwen"] } });
+    expect(client.statusCode).toBe(201);
+    expect(client.json().key).toMatch(/^cc-/);
+    const listed = await app.inject({ method: "GET", url: "/api/gateway/clients" });
+    expect([...listed.json().clients.map((c: { name: string }) => c.name)].sort()).toEqual(["ci", "tester"]);
+    void key;
+    void served;
+    void clients;
+    await app.close();
+  });
+
+  it("serves analysis summary, CSV export, and prometheus metrics", async () => {
+    const { app, key } = await gatewayApp();
+    await app.inject({ method: "POST", url: "/v1/chat/completions", headers: { authorization: `Bearer ${key}` }, payload: { model: "glm" } });
+
+    const summary = await app.inject({ method: "GET", url: "/api/analysis/summary?windowHours=24" });
+    expect(summary.json().kpis.requests).toBe(1);
+    expect(summary.json().byAlias[0]).toMatchObject({ key: "glm", requests: 1 });
+
+    const csvRes = await app.inject({ method: "GET", url: "/api/analysis/export.csv" });
+    expect(csvRes.headers["content-type"]).toContain("text/csv");
+    expect(csvRes.body.split("\n")[0]).toContain("alias");
+    expect(csvRes.body).toContain("glm");
+
+    const prom = await app.inject({ method: "GET", url: "/api/metrics/prometheus" });
+    expect(prom.body).toContain("cc_gateway_requests_total{alias=\"glm\"} 1");
+    expect(prom.body).toContain("cc_gateway_ttft_p50_ms");
+    await app.close();
+  });
+});

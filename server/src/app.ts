@@ -13,8 +13,35 @@ import { jobArgv } from "./jobs/commands.js";
 import { RecipeStore, buildRecipeProbeCommand, parseRecipeProbe, validRecipePath } from "./serving/recipes.js";
 import { DeploymentStore, DeploymentSupervisor, joinServeState, type DeploymentRecord } from "./serving/deployments.js";
 import { checkMultiNode } from "./serving/multiNode.js";
+import { ServedModelsStore, type ServedModelTarget } from "./gateway/servedModels.js";
+import { ClientsStore } from "./gateway/clients.js";
+import { handleGatewayRequest, healthFromState } from "./gateway/gateway.js";
+import { TracesStore } from "./stores/tracesStore.js";
+import { TraceQueries } from "./stores/traceQueries.js";
+import { RequestRecorder } from "./gateway/recorder.js";
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { VERSION } from "@cc/shared";
+
+/** CSV field escaping: quotes, commas, newlines. */
+function csv(value: string | null | undefined): string {
+  const s = String(value ?? "");
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** Prometheus label escaping. */
+function prom(value: string): string {
+  return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+/** Extract the requested model alias from a JSON request body. */
+function bodyModel(body: string | null): string | null {
+  try {
+    const parsed = JSON.parse(body ?? "{}") as { model?: string };
+    return typeof parsed.model === "string" ? parsed.model : null;
+  } catch {
+    return null;
+  }
+}
 
 export interface AppOptions {
   logger?: boolean;
@@ -43,6 +70,14 @@ export interface AppOptions {
   sshIdentity?: string;
   /** Test seam: fetch used by /llm pass-through (defaults to global fetch). */
   llmFetch?: typeof fetch;
+  /** Gateway traces (M4). With traceQueries, analysis + metrics go live. */
+  tracesStore?: TracesStore;
+  traceQueries?: TraceQueries;
+  /** Served-model aliases (M4). With clients, the /v1 gateway goes live. */
+  servedModelsStore?: ServedModelsStore;
+  clientsStore?: ClientsStore;
+  /** Default upstream Authorization injected when the client sends none. */
+  upstreamAuth?: string | null;
 }
 
 /**
@@ -68,7 +103,6 @@ export function buildApp(opts: AppOptions = {}) {
     app.decorate("nodeDirectory", nodeDirectory);
 
     app.get("/api/nodes", async () => ({ nodes: nodeDirectory.list() }));
-
     const modelctl = opts.modelctl ?? new ModelctlService();
     app.decorate("modelctl", modelctl);
 
@@ -398,6 +432,185 @@ export function buildApp(opts: AppOptions = {}) {
       }
       return reply.send();
     });
+
+    // ── Gateway /v1 + analysis surface (M4) ──
+    const servedModelsStore = opts.servedModelsStore;
+    const clientsStore = opts.clientsStore;
+    const traces = opts.tracesStore;
+    const traceQueries = opts.traceQueries;
+    if (servedModelsStore) {
+      const rrCounters = new Map<string, number>();
+      /** Live host + observed state for a router target. */
+      const targetState = (t: ServedModelTarget) => {
+        const node = nodeDirectory.get(t.nodeId);
+        const dep = deploymentStore?.list().find((d) => d.sparkId === t.nodeId && d.port === t.port) ?? null;
+        const state = dep
+          ? joinServeState({
+              desired: dep.desired,
+              orphaned: recipeStore?.get(dep.recipeId)?.orphaned ?? false,
+              job: dep.jobId ? (jobs.get(dep.jobId) ?? null) : null,
+              probe: dep.lastProbe,
+              ranks: dep.lastProbe?.ranks ?? null,
+              servedName: (recipeStore?.get(dep.recipeId)?.meta as { servedName?: string | null } | null)?.servedName ?? null,
+            }).state
+          : undefined;
+        return { nodeId: t.nodeId, port: t.port, host: node?.lanIp ?? null, state };
+      };
+
+      app.all("/v1/*", async (request, reply) => {
+        const rest = (request.params as Record<string, string>)["*"] ?? "";
+        const body = typeof request.body === "string" ? request.body : request.body != null ? JSON.stringify(request.body) : null;
+        const recorder = new RequestRecorder();
+        let clientName: string | null = null;
+        const res = await handleGatewayRequest(
+          {
+            servedModels: servedModelsStore.list(),
+            clients: clientsStore
+              ? {
+                  verify: (k: string) => {
+                    const c = clientsStore.verify(k);
+                    if (c) clientName = c.name;
+                    return c;
+                  },
+                }
+              : null,
+            targetState,
+            rrCounters,
+            upstreamAuth: opts.upstreamAuth ?? null,
+            onResponseChunk: (chunk, atMs) => recorder.chunk(chunk, atMs),
+          },
+          {
+            method: request.method,
+            path: `/v1/${rest}`,
+            query: new URL(request.url, "http://internal").search.replace(/^\?/, "") || undefined,
+            headers: {
+              ...(typeof request.headers.authorization === "string" ? { authorization: request.headers.authorization } : {}),
+              ...(typeof request.headers["content-type"] === "string" ? { "content-type": request.headers["content-type"] } : {}),
+            },
+            body,
+          },
+        );
+        if (traces) {
+          const trace = recorder.finish({
+            ts: Date.now(),
+            client: clientName,
+            alias: bodyModel(body) ?? "unknown",
+            model: null,
+            nodeId: res.servedBy?.nodeId ?? null,
+            port: res.servedBy?.port ?? null,
+            status: res.status,
+            contentType: res.headers["content-type"] ?? null,
+            attempts: res.attempts,
+            error: res.status >= 400 ? res.body?.slice(0, 200) : null,
+          });
+          traces.insert(trace);
+          void traces.prune();
+        }
+        reply.code(res.status).headers(res.headers);
+        return res.body ?? "";
+      });
+
+      // Router editor surface.
+      app.get("/api/gateway/served-models", async () => ({ models: servedModelsStore.list() }));
+      app.post("/api/gateway/served-models", async (request, reply) => {
+        const body = request.body as { id?: string; alias?: string; targets?: ServedModelTarget[]; onDemand?: { recipeId: string; idleStopS?: number } | null } | null;
+        if (!body?.alias) return reply.code(400).send({ error: "alias is required" });
+        try {
+          const rec = servedModelsStore.upsert({
+            id: body.id,
+            alias: body.alias,
+            targets: body.targets ?? [],
+            onDemand: body.onDemand ?? null,
+          });
+          return reply.code(201).send(rec);
+        } catch (err) {
+          return reply.code(409).send({ error: err instanceof Error ? err.message : "upsert failed" });
+        }
+      });
+      app.delete("/api/gateway/served-models/:id", async (request, reply) => {
+        const { id } = request.params as { id: string };
+        if (!servedModelsStore.remove(id)) return reply.code(404).send({ error: "unknown served model" });
+        return { removed: true };
+      });
+
+      // Clients & keys management.
+      if (clientsStore) {
+        app.get("/api/gateway/clients", async () => ({ clients: clientsStore.list() }));
+        app.post("/api/gateway/clients", async (request, reply) => {
+          const body = request.body as { name?: string; scopes?: string[] } | null;
+          if (!body?.name) return reply.code(400).send({ error: "name is required" });
+          const { client, key } = clientsStore.create({ name: body.name, scopes: body.scopes });
+          return reply.code(201).send({ client, key }); // key shown exactly once
+        });
+        app.post("/api/gateway/clients/:id/revoke", async (request, reply) => {
+          const { id } = request.params as { id: string };
+          if (!clientsStore.revoke(id)) return reply.code(404).send({ error: "unknown or already revoked" });
+          return { revoked: true };
+        });
+        app.delete("/api/gateway/clients/:id", async (request, reply) => {
+          const { id } = request.params as { id: string };
+          if (!clientsStore.remove(id)) return reply.code(404).send({ error: "unknown client" });
+          return { removed: true };
+        });
+      }
+    }
+
+    // Analysis + export (needs traces).
+    if (traces && traceQueries) {
+      app.get("/api/analysis/summary", async (request) => {
+        const windowHours = Number((request.query as { windowHours?: string }).windowHours ?? "24");
+        const since = Date.now() - windowHours * 3600_000;
+        return {
+          windowHours,
+          kpis: traceQueries.kpis(since),
+          byClient: traceQueries.byClient(since),
+          byAlias: traceQueries.byAlias(since),
+          byDeployment: traceQueries.byDeployment(since),
+          byHour: traceQueries.byHour(since),
+        };
+      });
+      app.get("/api/analysis/traces", async (request) => {
+        const q = request.query as { alias?: string; client?: string; limit?: string };
+        return { traces: traces.list({ alias: q.alias, limit: q.limit ? Number(q.limit) : undefined }) };
+      });
+      app.get("/api/analysis/export.csv", async (request, reply) => {
+        const q = request.query as { alias?: string; since?: string; limit?: string };
+        const rows = traces.list({ alias: q.alias, since: q.since ? Number(q.since) : undefined, limit: 1000 });
+        const cols = ["id", "ts", "client", "alias", "model", "nodeId", "port", "status", "ttftMs", "durationMs", "stream", "promptTokens", "completionTokens", "error"];
+        const lines = [cols.join(",")];
+        for (const t of rows) {
+          lines.push(
+            [
+              t.id, t.ts, csv(t.client), csv(t.alias), csv(t.model), csv(t.nodeId), t.port ?? "", t.status ?? "",
+              t.ttftMs ?? "", t.durationMs, t.stream ? "1" : "0", t.promptTokens ?? "", t.completionTokens ?? "",
+            ].join(","),
+          );
+        }
+        reply.header("content-type", "text/csv");
+        return lines.join("\n") + "\n";
+      });
+
+      app.get("/api/metrics/prometheus", async (request) => {
+        const windowHours = Number((request.query as { windowHours?: string }).windowHours ?? "24");
+        const since = Date.now() - windowHours * 3600_000;
+        const out: string[] = [];
+        out.push("# TYPE cc_gateway_requests_total counter");
+        for (const r of [...traceQueries.byClient(since)]) {
+          out.push(`cc_gateway_requests_total{client="${prom(r.key)}"} ${r.requests}`);
+        }
+        for (const r of traceQueries.byAlias(since)) {
+          out.push(`cc_gateway_requests_total{alias="${prom(r.key)}"} ${r.requests}`);
+        }
+        out.push("# TYPE cc_gateway_tokens_total counter");
+        const k = traceQueries.kpis(since);
+        out.push(`cc_gateway_prompt_tokens_total ${k.promptTokens}`);
+        out.push(`cc_gateway_completion_tokens_total ${k.completionTokens}`);
+        out.push("# TYPE cc_gateway_ttft_ms gauge");
+        out.push(`cc_gateway_ttft_p50_ms ${k.ttftP50Ms ?? "NaN"}`);
+        out.push(`cc_gateway_ttft_p95_ms ${k.ttftP95Ms ?? "NaN"}`);
+        return out.join("\n") + "\n";
+      });
+    }
 
     if (opts.agentHubDeps) {
       const hubDeps = opts.agentHubDeps;
