@@ -157,7 +157,7 @@ sparkControl's node layer is the pain point — dual SSH/agent implementations w
 - **`--fake-fleet` dev mode**: the real server + web app boot against 3 simulated nodes + fake engines — full-stack demo and Playwright smoke on a laptop; the real fleet is only needed for the M-gates.
 - **Deterministic time**: injectable clock for reconciler ticks, schedules, retention, and thermal-guard logic — no sleeping in tests.
 - **Property tests for the risky edges**: shell quoting, probe parsers (five engine dialects), SSE tee caps, placement planner.
-- **CI gates**: typecheck strict · eslint boundaries · `node --test` + vitest · c8 ≥ 75 % (server+agent) · Playwright smoke on fake fleet · docs-check.
+- **CI gates**: typecheck strict · eslint boundaries · vitest · c8 ≥ 75 % lines on `shared/`+`server/`+`agent/` **at every commit — the per-task coverage objective** · Playwright smoke on fake fleet · docs-check.
 
 ### F2 — Model catalog & placement (modelctl)
 - **Models page**: NAS catalog master-detail (manifest details, serve-command copy, RUN.md, cards), HF download form + `downloads.yaml`-style queue, catalog refresh, doctor + two-click repair, modelctl version/update job.
@@ -335,7 +335,9 @@ Full spec + visual mockups in [`design/mockups/`](design/mockups/index.html) (sc
 
 ## 11. Execution plan (milestones with gates)
 
-Each milestone ends in a **gate** — demoable behavior + tests green; coverage gate ≥75 % (server+agent) enforced from M1.
+**Quality contract (applies to every task in §11).** Each task ships with its tests in the same change; the c8/vitest gate enforces **≥75 % line coverage on `shared/` + `server/` + `agent/` for the merged tree at every commit** (pre-commit + CI run it), so any task whose new code drops the tree below 75 % fails its own acceptance — coverage is per-task by construction, not a phase-end cleanup. Web logic (stores, parsers, clients) follows the same rule via vitest from M1; pure-render UI is exercised by the Playwright fake-fleet smoke (M7). Gates below are in addition to this standing rule.
+
+Each milestone ends in a **gate** — demoable behavior + tests green.
 
 - **M0 — Bootstrap (½ day).** agentic-bootstrap init (+answers above), ADRs 0001–0008 written, pnpm/npm workspace skeleton (`server`, `web`, `agent`, `shared`), toolchain + CI + hooks, Dockerfiles + compose, `docs/RUNBOOKS.md` seeds. *Gate: CI green on hello-world endpoints; `agentic-bootstrap validate` passes.*
 - **M1 — Fleet core (1 wk).** Node registry + typed settings/secrets; **`shared/` protocol schemas + `FakeNode`/`--fake-fleet` harness built first**; agent daemon + `/agent-ws` (handshake, watchdog, seq'd atomic snapshots); SSH bootstrap (install-agent job only); collectors; WS hub; Overview + Node pages with reconciler state enum; SQLite + rollups. *Gate: fake-fleet demo drives the full UI with fault injection (kill agent → `degraded`, replay with gap markers); reconciler re-applies clock profile after simulated node boot; real DGX1+DGX2 live via agent with <2 s freshness.*
