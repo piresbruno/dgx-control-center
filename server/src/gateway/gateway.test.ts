@@ -159,3 +159,28 @@ describe("gateway proxy", () => {
     expect(res.attempts.every((a) => a.error === "no lanIp")).toBe(true);
   });
 });
+
+describe("502 recording (failover drill evidence)", () => {
+  it("records exhausted chains as traces with full attempt trails", async () => {
+    const down1 = await engine([{ fail: true }]);
+    const down2 = await engine([{ fail: true }]);
+    const seen: unknown[] = [];
+    const res = await handleGatewayRequest(
+      baseDeps({
+        servedModels: [
+          { id: "s", alias: "glm", targets: [{ nodeId: "a", port: down1.port }, { nodeId: "b", port: down2.port }], onDemand: null, createdAt: 1, updatedAt: 1 },
+        ],
+        onAttempt: (info) => seen.push(info),
+      }),
+      { method: "POST", path: "/v1/chat/completions", headers: {}, body: JSON.stringify({ model: "glm" }) },
+    ).finally(() => {
+      down1.server.close();
+      down2.server.close();
+    });
+    expect(res.status).toBe(502);
+    expect(res.attempts).toHaveLength(2);
+    // The recorder hook observed both attempts with timings.
+    expect(seen).toHaveLength(2);
+    expect((seen[0] as { status: number | null }).status).toBeNull();
+  });
+});
