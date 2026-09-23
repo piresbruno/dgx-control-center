@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import type { LiveNode } from "../api/ws.js";
 import { nodeSummary, statusPill } from "../App.js";
+import { listDeployments, type DeploymentRecord } from "../api/serving.js";
 
 export interface NodePageProps {
   node: LiveNode | null;
@@ -62,8 +64,68 @@ export function NodePage({ node, nodes, history, onSelectNode }: NodePageProps) 
         </Panel>
       </div>
 
+      <NodeServingBays sparkId={node.sparkId} />
+
       <div className="note">◈ Live values from the agent snapshot feed; history charts attach to the SQLite query API (M1+).</div>
     </>
+  );
+}
+
+/** Engine bays: deployments hosted on this node with their serve route. */
+function NodeServingBays({ sparkId }: { sparkId: string }) {
+  const [deployments, setDeployments] = useState<DeploymentRecord[] | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const d = await listDeployments().catch(() => null);
+      if (alive && d) setDeployments(d.deployments.filter((x) => x.sparkId === sparkId));
+    };
+    void load();
+    const t = setInterval(() => void load(), 4000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [sparkId]);
+
+  return (
+    <section className="panel" data-testid="serving-bays">
+      <div className="panel-head">
+        <h3>Engine bays</h3>
+        <span className="pill info"><span className="dot" />{deployments?.length ?? "…"}</span>
+      </div>
+      <div className="panel-body flush">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Engine</th>
+              <th>Bay state</th>
+              <th>Pass-through</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(deployments ?? []).map((d) => (
+              <tr key={d.id}>
+                <td>
+                  <strong>{d.servedName ?? d.recipeId}</strong>
+                  <div className="hint" style={{ fontSize: 11 }}>port {d.port ?? "?"} · desired {d.desired}</div>
+                </td>
+                <td>
+                  <span className={`pill ${d.state.state === "healthy" ? "ok" : d.state.state === "stopped" ? "info" : "warn"}`}>
+                    <span className="dot" />{d.state.state}
+                  </span>
+                </td>
+                <td>{d.port != null ? <code style={{ fontSize: 11.5 }}>/llm/node/{d.sparkId}/{d.port}</code> : "—"}</td>
+              </tr>
+            ))}
+            {deployments && deployments.length === 0 && (
+              <tr><td colSpan={3} className="empty">No engines deployed on this node.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
