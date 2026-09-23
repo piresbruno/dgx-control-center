@@ -73,6 +73,19 @@ function extractAlias(path: string, body: string | null | undefined): { alias: s
   }
 }
 
+/** Replace the model field with the target's upstream model id. */
+function rewriteModel(body: string | null | undefined, modelId: string): string | null {
+  if (body == null) return body ?? null;
+  try {
+    const parsed = JSON.parse(body) as Record<string, unknown>;
+    if (typeof parsed.model !== "string") return body;
+    parsed.model = modelId;
+    return JSON.stringify(parsed);
+  } catch {
+    return body;
+  }
+}
+
 export async function handleGatewayRequest(deps: GatewayDeps, req: GatewayRequest): Promise<GatewayResponse> {
   const attempts: GatewayResponse["attempts"] = [];
   const fetchImpl = deps.fetchImpl ?? fetch;
@@ -151,13 +164,16 @@ export async function handleGatewayRequest(deps: GatewayDeps, req: GatewayReques
       attempts.push({ nodeId: target.nodeId, port: target.port, status: null, error: "no lanIp" });
       continue;
     }
+    // Engines validate the model name — rewrite the alias to the target's
+    // upstream model id (defaults to the alias).
+    const targetBody = rewriteModel(req.body, target.modelId ?? alias);
     const url = `http://${st.host}:${target.port}${req.path}${req.query ? `?${req.query}` : ""}`;
     const startedAt = deps.now?.() ?? Date.now();
     try {
       const upstream = await fetchImpl(url, {
         method: req.method,
         headers: upstreamHeaders,
-        ...(req.method !== "GET" && req.method !== "HEAD" && req.body != null ? { body: req.body } : {}),
+        ...(req.method !== "GET" && req.method !== "HEAD" && targetBody != null ? { body: targetBody } : {}),
         signal: AbortSignal.timeout(300_000),
       });
       const endedAt = deps.now?.() ?? Date.now();
