@@ -3,8 +3,10 @@ import { useLiveSnapshot, type LiveNode } from "./api/ws.js";
 import { OverviewPage } from "./pages/OverviewPage.js";
 import { NodePage } from "./pages/NodePage.js";
 import { ModelsPage } from "./pages/ModelsPage.js";
+import { ServePage } from "./pages/ServePage.js";
+import { RecipesPage } from "./pages/RecipesPage.js";
 
-type PageId = "overview" | "node" | "models" | "alerts" | "settings";
+type PageId = "overview" | "node" | "models" | "serve" | "recipes" | "alerts" | "settings";
 
 const NAV: Array<{ sec?: string; id?: PageId; label?: string }> = [
   { sec: "Fleet" },
@@ -12,6 +14,9 @@ const NAV: Array<{ sec?: string; id?: PageId; label?: string }> = [
   { id: "node", label: "Nodes" },
   { sec: "Model Plane" },
   { id: "models", label: "Models" },
+  { sec: "Serving" },
+  { id: "recipes", label: "Recipes" },
+  { id: "serve", label: "Serve" },
   { sec: "Coming in later milestones" },
   { id: "alerts", label: "Alerts" },
   { id: "settings", label: "Settings" },
@@ -85,6 +90,8 @@ export function App() {
             <NodePage node={node} nodes={nodes} history={history} onSelectNode={selectNode} />
           )}
           {page === "models" && <ModelsPage />}
+          {page === "recipes" && <RecipesPage />}
+          {page === "serve" && <ServePage />}
           {page === "alerts" && (
             <div className="panel"><div className="panel-body"><div className="empty">Alerts ship at M6 — see PLAN.md F5a.</div></div></div>
           )}
