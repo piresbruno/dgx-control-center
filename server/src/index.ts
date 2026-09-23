@@ -10,6 +10,7 @@ import { openDb } from "./stores/db.js";
 import { MetricsStore } from "./stores/metricsStore.js";
 import { LiveState, type LiveSnapshot } from "./liveState.js";
 import { registerBrowserHub } from "./browserHub.js";
+import { ModelctlService, resolveModelctlPath } from "./modelctl/service.js";
 
 const fakeFleet = process.argv.includes("--fake-fleet");
 const env = serverEnvSchema.parse(process.env);
@@ -21,6 +22,10 @@ await desired.load();
 
 const db = openDb(env.CC_DB_PATH);
 const metricsStore = new MetricsStore(db);
+
+const modelctlPath = await resolveModelctlPath(env.CC_MODELCTL_PATH);
+if (!modelctlPath) console.warn("[modelctl] binary not found — model inventories will error until installed");
+const modelctl = new ModelctlService({ modelctlPath: modelctlPath ?? undefined });
 
 const liveState = new LiveState({
   describe: (id) => {
@@ -60,7 +65,7 @@ if (fakeFleet) {
   await directory.upsert({ id: "nas1", name: "nas1", kind: "nas", role: "standalone" });
 }
 
-const app = buildApp({ logger: true, nodeDirectory: directory });
+const app = buildApp({ logger: true, nodeDirectory: directory, modelctl });
 const hub = registerAgentHub(app, hubDeps, (scope) =>
   registerBrowserHub(scope, () => liveState.snapshot(), (cb) => {
     broadcastListeners.add(cb);

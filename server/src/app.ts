@@ -5,6 +5,7 @@ import { registerAgentHub } from "./agentHub.js";
 import { runInstallAgent, type BootstrapTransport } from "./bootstrap/installAgent.js";
 import { runSsh } from "./transport/ssh.js";
 import type { NodeDirectory } from "./nodeDirectory.js";
+import { ModelctlService, NAS_TTL_MS, NODE_TTL_MS } from "./modelctl/service.js";
 import { VERSION } from "@cc/shared";
 
 export interface AppOptions {
@@ -16,6 +17,10 @@ export interface AppOptions {
   installHelloTimeoutMs?: number;
   /** Test seam: overrides the SSH run used by the install job. */
   installTransport?: BootstrapTransport;
+  /** Model inventories (M2). Default: a real ModelctlService. */
+  modelctl?: ModelctlService;
+  /** Test seam: SSH runner for node modelctl calls (defaults to runSsh). */
+  nodeInventoryRunner?: (host: string, user: string, args: string[]) => Promise<string>;
 }
 
 /**
@@ -41,6 +46,33 @@ export function buildApp(opts: AppOptions = {}) {
     app.decorate("nodeDirectory", nodeDirectory);
 
     app.get("/api/nodes", async () => ({ nodes: nodeDirectory.list() }));
+
+    const modelctl = opts.modelctl ?? new ModelctlService();
+    app.decorate("modelctl", modelctl);
+
+    // NAS store inventory (modelctl configured against the mounted store).
+    app.get("/api/models", async () =>
+      modelctl.inventory({ targetId: "nas", args: ["list", "--json"], ttlMs: NAS_TTL_MS }),
+    );
+
+    /** Node-local cache inventory over SSH (modelctl runs on the node). */
+    app.get("/api/nodes/:id/models", async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const node = nodeDirectory.get(id);
+      if (!node) return reply.code(404).send({ error: "unknown node" });
+      if (!node.lanIp || !node.sshUser) {
+        return reply.code(400).send({ error: "node lacks lanIp or sshUser — set them in Edit node" });
+      }
+      const runNode =
+        opts.nodeInventoryRunner ??
+        (async (host: string, user: string, args: string[]): Promise<string> => {
+          const result = await runSsh({ host, user }, `modelctl ${args.join(" ")}`, { timeoutMs: 120_000 });
+          if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `modelctl exited ${result.exitCode}`);
+          return result.stdout;
+        });
+      const runner = (args: string[]): Promise<string> => runNode(node.lanIp!, node.sshUser!, args);
+      return modelctl.inventory({ targetId: `node:${id}`, args: ["list", "--local", "--json"], ttlMs: NODE_TTL_MS, runner });
+    });
 
     if (opts.agentHubDeps) {
       const hubDeps = opts.agentHubDeps;
