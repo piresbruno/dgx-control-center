@@ -64,9 +64,9 @@ export function buildApp(opts: AppOptions = {}) {
     app.post("/api/nodes/:id/jobs", async (request, reply) => {
       const { id } = request.params as { id: string };
       if (!nodeDirectory.get(id)) return reply.code(404).send({ error: "unknown node" });
-      const body = request.body as { kind?: string; timeoutMs?: number } | null;
-      const argv = jobArgv(body?.kind ?? "");
-      if (!argv) return reply.code(400).send({ error: "unknown job kind" });
+      const body = request.body as { kind?: string; timeoutMs?: number; params?: unknown } | null;
+      const argv = jobArgv(body?.kind ?? "", body?.params);
+      if (!argv) return reply.code(400).send({ error: "unknown job kind or invalid params" });
       const result = jobs.dispatch(id, body!.kind!, argv, { timeoutMs: body?.timeoutMs });
       if ("error" in result) {
         const code = result.error === "conflict" ? 409 : 503;

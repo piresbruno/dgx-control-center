@@ -1,11 +1,42 @@
-/**
- * Server-side job command registry: REST clients name a KIND; the argv is
- * resolved here. Never accept raw argv from the API — jobs run on real nodes.
- */
-export const JOB_KINDS = ["modelctl-version", "modelctl-list-local", "uv-version"] as const;
-export type JobKind = (typeof JOB_KINDS)[number];
+import { z } from "zod";
 
-export function jobArgv(kind: string): string[] | null {
+/**
+ * Server-side job command registry: REST clients name a KIND + params; the
+ * argv is resolved here. Never accept raw argv from the API — jobs run on
+ * real nodes. Children spawn without a shell, but params still get strict
+ * allowlists so bad input fails at the API boundary.
+ */
+
+const repoId = z
+  .string()
+  .min(1)
+  .max(200)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9_./-]*$/, "invalid model identifier");
+const hostname = z
+  .string()
+  .min(1)
+  .max(253)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9.-]*$/, "invalid host");
+
+export const jobParamsSchemas = {
+  "modelctl-version": z.object({}).strict().default({}),
+  "modelctl-list-local": z.object({}).strict().default({}),
+  "uv-version": z.object({}).strict().default({}),
+  "modelctl-download": z.object({ source: repoId }).strict(),
+  "modelctl-sync-local": z.object({ model: repoId }).strict(),
+  "modelctl-push": z.object({ model: repoId, host: hostname }).strict(),
+} as const;
+
+export type JobKind = keyof typeof jobParamsSchemas;
+export const JOB_KINDS = Object.keys(jobParamsSchemas);
+
+/** Resolve a job kind + raw params to argv. Null when kind/params invalid. */
+export function jobArgv(kind: string, params: unknown = {}): string[] | null {
+  const schema = (jobParamsSchemas as Record<string, z.ZodTypeAny | undefined>)[kind];
+  if (!schema) return null;
+  const parsed = schema.safeParse(params ?? {});
+  if (!parsed.success) return null;
+  const p = parsed.data as Record<string, string>;
   switch (kind) {
     case "modelctl-version":
       return ["modelctl", "--version"];
@@ -13,6 +44,12 @@ export function jobArgv(kind: string): string[] | null {
       return ["modelctl", "list", "--local", "--json"];
     case "uv-version":
       return ["uv", "--version"];
+    case "modelctl-download":
+      return ["modelctl", "download", p.source!];
+    case "modelctl-sync-local":
+      return ["modelctl", "sync-local", p.model!];
+    case "modelctl-push":
+      return ["modelctl", "push", "--host", p.host!, p.model!];
     default:
       return null;
   }
