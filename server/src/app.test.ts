@@ -605,3 +605,34 @@ describe("power & clocks API (M5)", () => {
     await app.close();
   });
 });
+
+describe("thermal guard API (M5)", () => {
+  it("reports per-node states and events from the injected guard", async () => {
+    const dir = await testDirectory();
+    const { ThermalGuard } = await import("./power/thermal.js");
+    const { ClockProfileStore } = await import("./power/clockStore.js");
+    const guard = new ThermalGuard({ filePath: join(await mkdtemp(join(tmpdir(), "cc-")), "t.json"), now: () => 1_000 });
+    guard.tick([{ sparkId: "dgx1", gpuTempC: 85 }]);
+    await dir.upsert({ id: "dgx1", name: "dgx-1", kind: "spark", role: "head", lanIp: "10.0.0.11", sshUser: "u" });
+    await dir.upsert({ id: "nas1", name: "nas1", kind: "nas", role: "standalone" });
+    const clockStore = new ClockProfileStore({ filePath: join(await mkdtemp(join(tmpdir(), "cc-")), "c.json") });
+    const app = buildApp({ nodeDirectory: dir, clockStore, thermalGuard: guard });
+    const res = await app.inject({ method: "GET", url: "/api/power/thermal" });
+    expect(res.json()).toMatchObject({
+      nodes: [expect.objectContaining({ sparkId: "dgx1", state: "derated" })],
+      events: [expect.objectContaining({ kind: "derate", tempC: 85 })],
+    });
+    await app.close();
+  });
+
+  it("defaults to nominal without a guard", async () => {
+    const dir = await testDirectory();
+    const { ClockProfileStore } = await import("./power/clockStore.js");
+    await dir.upsert({ id: "dgx1", name: "dgx-1", kind: "spark", role: "head", lanIp: "10.0.0.11", sshUser: "u" });
+    const clockStore = new ClockProfileStore({ filePath: join(await mkdtemp(join(tmpdir(), "cc-")), "c.json") });
+    const app = buildApp({ nodeDirectory: dir, clockStore });
+    const res = await app.inject({ method: "GET", url: "/api/power/thermal" });
+    expect(res.json().nodes).toEqual([{ sparkId: "dgx1", state: "nominal" }]);
+    await app.close();
+  });
+});

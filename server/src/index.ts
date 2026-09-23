@@ -12,6 +12,7 @@ import { LiveState, type LiveSnapshot } from "./liveState.js";
 import { registerBrowserHub } from "./browserHub.js";
 import { ModelctlService, resolveModelctlPath } from "./modelctl/service.js";
 import { JobsManager } from "./jobs/jobsManager.js";
+import { jobArgv } from "./jobs/commands.js";
 import { RecipeStore } from "./serving/recipes.js";
 import { DeploymentStore } from "./serving/deployments.js";
 import { ServedModelsStore } from "./gateway/servedModels.js";
@@ -19,6 +20,8 @@ import { ClientsStore } from "./gateway/clients.js";
 import { TracesStore } from "./stores/tracesStore.js";
 import { TraceQueries } from "./stores/traceQueries.js";
 import { ClockProfileStore } from "./power/clockStore.js";
+import { ThermalGuard } from "./power/thermal.js";
+import { profileById, resolveProfile } from "./power/profiles.js";
 import type { AgentRegistry } from "./agentHub.js";
 
 const fakeFleet = process.argv.includes("--fake-fleet");
@@ -75,6 +78,31 @@ if (fakeFleet) {
   await directory.upsert({ id: "nas1", name: "nas1", kind: "nas", role: "standalone" });
 }
 
+// ── Thermal guard (M5): auto-derate on GPU heat, revert on sustained recovery ──
+const thermal = new ThermalGuard({
+  filePath: "config/thermal-state.json",
+  onDerate: (sparkId) => {
+    const quiet = resolveProfile(profileById("quiet")!, null);
+    const argv = jobArgv("clock-apply", { gpuMaxMhz: quiet.gpuMaxMhz, cpuMaxMhz: quiet.cpuMaxMhz });
+    if (argv) jobsManager.dispatch(sparkId, "clock-apply", argv, { timeoutMs: 30_000 });
+  },
+  onRecover: (sparkId) => {
+    const desired = clockStore.desiredFor(sparkId).profile;
+    const resolved = resolveProfile(profileById(desired)!, null);
+    const argv = jobArgv("clock-apply", { gpuMaxMhz: resolved.gpuMaxMhz, cpuMaxMhz: resolved.cpuMaxMhz });
+    if (argv) jobsManager.dispatch(sparkId, "clock-apply", argv, { timeoutMs: 30_000 });
+  },
+});
+setInterval(() => {
+  const snap = liveState.snapshot();
+  thermal.tick(
+    snap.nodes.map((n) => ({
+      sparkId: n.sparkId,
+      gpuTempC: (n.domains["gpu"] as { tempC?: number | null } | undefined)?.tempC ?? null,
+    })),
+  );
+}, 15_000);
+
 const registryRef: { current: AgentRegistry | null } = { current: null };
 const jobsManager = new JobsManager({
   send: (nodeId, msg) => registryRef.current?.send(nodeId, msg) ?? false,
@@ -98,6 +126,7 @@ const app = buildApp({
   clientsStore,
   clockStore,
   desiredStore: desired,
+  thermalGuard: thermal,
   tracesStore: new TracesStore({ db }),
   traceQueries: new TraceQueries(db),
   upstreamAuth: env.CC_UPSTREAM_AUTH ?? null,
@@ -105,6 +134,8 @@ const app = buildApp({
 });
 const onDemand = (app as unknown as { onDemand: { startSweeper(): () => void } | undefined }).onDemand;
 onDemand?.startSweeper();
+
+
 const hub = registerAgentHub(app, hubDeps, (scope) =>
   registerBrowserHub(scope, () => liveState.snapshot(), (cb) => {
     broadcastListeners.add(cb);

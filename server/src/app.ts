@@ -85,6 +85,8 @@ export interface AppOptions {
   clockStore?: ClockProfileStore;
   /** Desired-state store (M5): clock desires write through so the reconciler pushes config-update. */
   desiredStore?: import("./desiredState.js").DesiredStateStore;
+  /** Thermal guard instance (owned by index.ts — its hooks dispatch jobs). */
+  thermalGuard?: import("./power/thermal.js").ThermalGuard;
 }
 
 /**
@@ -633,6 +635,8 @@ export function buildApp(opts: AppOptions = {}) {
     // ── Power & clocks (M5): profile registry + desired state ──
     const clockStore = opts.clockStore;
     if (clockStore) {
+      app.decorate("thermalGuard", opts.thermalGuard ?? null);
+      const thermal = opts.thermalGuard;
       app.decorate("clockStore", clockStore);
 
       app.get("/api/power/profiles", async () => ({ profiles: CLOCK_PROFILES }));
@@ -651,6 +655,14 @@ export function buildApp(opts: AppOptions = {}) {
               updatedAt: desire.updatedAt,
             };
           }),
+      }));
+
+      app.get("/api/power/thermal", async () => ({
+        nodes: nodeDirectory
+          .list()
+          .filter((n) => n.kind === "spark")
+          .map((n) => ({ sparkId: n.id, state: thermal?.stateFor(n.id) ?? "nominal" })),
+        events: thermal?.events().slice(0, 50) ?? [],
       }));
 
       /** Set the desired profile — spark nodes only (409 otherwise). */

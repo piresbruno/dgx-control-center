@@ -74,7 +74,7 @@ export function jobArgv(kind: string, params: unknown = {}): string[] | null {
       const script = [
         "test -x /usr/local/bin/cc-clock || { echo 'cc-clock helper missing — run Install clock control first' >&2; exit 127; }",
         "sudo -n /usr/local/bin/cc-clock check 2>/dev/null || { echo 'passwordless sudo for cc-clock required — install first' >&2; exit 126; }",
-        ...ops,
+        ...(ops.length > 0 ? ops : ["sudo -n /usr/local/bin/cc-clock gpu-reset", "sudo -n /usr/local/bin/cc-clock cpu-reset"]),
       ].join("\n");
       return ["bash", "-c", script];
     }
