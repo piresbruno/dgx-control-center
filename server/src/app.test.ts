@@ -277,3 +277,110 @@ describe("recipes API (M3)", () => {
     await app.close();
   });
 });
+
+describe("serve deployments API (M3)", () => {
+  const PROBE_OUT = [
+    "__P_FILES__",
+    "./start.sh 1024",
+    "__P_GIT__",
+    "abc1234",
+    "__P_DISPATCH__",
+    "start)",
+    "stop)",
+    "status)",
+    "__P_ENV__",
+    "PORT=8888",
+    "MODEL=glm53",
+    "SERVED_MODEL_NAME=GLM-5.3",
+    "NNODES=2",
+    "WORKER_IP=10.0.0.12",
+    "__P_CONTAINERS__",
+    'start.sh:CONTAINER_HEAD="${CONTAINER_HEAD:-glm-head}"',
+    "__P_END__",
+  ].join("\n");
+
+  async function serveApp() {
+    const dir = await testDirectory();
+    const { JobsManager } = await import("./jobs/jobsManager.js");
+    const { RecipeStore } = await import("./serving/recipes.js");
+    const { DeploymentStore } = await import("./serving/deployments.js");
+    const manager = new JobsManager({ send: () => true, isConnected: () => true });
+    const tmp = await mkdtemp(join(tmpdir(), "cc-serve-"));
+    const store = new RecipeStore({ filePath: join(tmp, "recipes.json") });
+    const deployments = new DeploymentStore({ filePath: join(tmp, "deployments.json") });
+    await dir.upsert({ id: "dgx1", name: "dgx-1", kind: "spark", role: "head", lanIp: "10.0.0.11", sshUser: "piresbruno" });
+    await dir.upsert({ id: "dgx2", name: "dgx-2", kind: "spark", role: "worker", lanIp: "10.0.0.12", sshUser: "piresbruno" });
+    const app = buildApp({ nodeDirectory: dir, jobsManager: manager, recipeStore: store, deploymentStore: deployments });
+    const reg = await app.inject({
+      method: "POST",
+      url: "/api/recipes",
+      payload: { nodeId: "dgx1", path: "/opt/recipes/GLM" },
+    });
+    const { recipe, jobId } = reg.json();
+    manager.observeMessage("dgx1", { type: "job-out", reqId: jobId, stream: "out", chunk: PROBE_OUT });
+    manager.observeMessage("dgx1", { type: "job-exit", reqId: jobId, code: 0 });
+    return { app, manager, deployments, recipe };
+  }
+
+  it("creates a deployment from a probed recipe and lists joined state", async () => {
+    const { app, manager, recipe } = await serveApp();
+    const create = await app.inject({ method: "POST", url: "/api/serve/deployments", payload: { recipeId: recipe.id } });
+    expect(create.statusCode).toBe(201);
+    const dep = create.json();
+    expect(dep).toMatchObject({ recipeId: recipe.id, sparkId: "dgx1", port: 8888, entry: "start.sh" });
+    expect(dep.state.state).toBe("stopped"); // no job yet, no probe
+
+    // Probe through the supervisor → state still stopped but probe captured.
+    const probe = await app.inject({ method: "POST", url: `/api/serve/deployments/${dep.id}/probe` });
+    expect(probe.statusCode).toBe(202);
+    manager.observeMessage("dgx1", { type: "job-out", reqId: probe.json().reqId, stream: "out", chunk: "__S_CONTAINERS__\nglm-head|running\n__S_HEALTH__\n200\n" });
+    manager.observeMessage("dgx1", { type: "job-exit", reqId: probe.json().reqId, code: 0 });
+
+    const list = await app.inject({ method: "GET", url: "/api/serve/deployments" });
+    const row = list.json().deployments[0];
+    expect(row.lastProbe.ranks).toEqual({ CONTAINER_HEAD: "running" });
+    expect(row.state.state).toBe("healthy");
+    await app.close();
+  });
+
+  it("start dispatches when the declared worker matches, 409s when not", async () => {
+    const { app, manager, recipe } = await serveApp();
+    // Happy path: declared worker 10.0.0.12 == dgx2's lanIp → 202.
+    const dep = (await app.inject({ method: "POST", url: "/api/serve/deployments", payload: { recipeId: recipe.id } })).json();
+    const ok = await app.inject({ method: "POST", url: `/api/serve/deployments/${dep.id}/start` });
+    expect(ok.statusCode).toBe(202);
+    manager.observeMessage("dgx1", { type: "job-exit", reqId: ok.json().reqId, code: 0 });
+
+    // A recipe whose declared worker matches nothing in the directory → 409.
+    const reg = await app.inject({ method: "POST", url: "/api/recipes", payload: { nodeId: "dgx1", path: "/opt/recipes/OTHER" } });
+    const other = reg.json();
+    manager.observeMessage("dgx1", { type: "job-out", reqId: other.jobId, stream: "out", chunk: PROBE_OUT.replace("10.0.0.12", "10.9.9.9") });
+    manager.observeMessage("dgx1", { type: "job-exit", reqId: other.jobId, code: 0 });
+    const dep2 = (await app.inject({ method: "POST", url: "/api/serve/deployments", payload: { recipeId: other.recipe.id } })).json();
+    const refused = await app.inject({ method: "POST", url: `/api/serve/deployments/${dep2.id}/start` });
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json()).toMatchObject({ error: "multi-node guard refused start", guard: { ok: false, code: "worker-unmatched" } });
+    await app.close();
+  });
+
+  it("stop and restart dispatch verbs; delete removes; unknown 404s", async () => {
+    const { app, manager, recipe } = await serveApp();
+    const dep = (await app.inject({ method: "POST", url: "/api/serve/deployments", payload: { recipeId: recipe.id } })).json();
+    const start = await app.inject({ method: "POST", url: `/api/serve/deployments/${dep.id}/start` });
+    expect(start.statusCode).toBe(202);
+    const startJobId = start.json().reqId;
+    manager.observeMessage("dgx1", { type: "job-exit", reqId: startJobId, code: 0 });
+    expect((await app.inject({ method: "GET", url: `/api/serve/deployments/${dep.id}` })).json()).toMatchObject({ desired: "running", jobState: "done" });
+
+    const stop = await app.inject({ method: "POST", url: `/api/serve/deployments/${dep.id}/stop` });
+    expect(stop.statusCode).toBe(202);
+    manager.observeMessage("dgx1", { type: "job-exit", reqId: stop.json().reqId, code: 0 });
+    expect((await app.inject({ method: "GET", url: `/api/serve/deployments/${dep.id}` })).json()).toMatchObject({ desired: "stopped" });
+
+    expect((await app.inject({ method: "DELETE", url: `/api/serve/deployments/${dep.id}` })).json()).toEqual({ removed: true });
+    expect((await app.inject({ method: "GET", url: `/api/serve/deployments/${dep.id}` })).statusCode).toBe(404);
+    expect((await app.inject({ method: "POST", url: "/api/serve/deployments/nope/stop" })).statusCode).toBe(404);
+    expect((await app.inject({ method: "POST", url: "/api/serve/deployments", payload: { recipeId: "nope" } })).statusCode).toBe(404);
+    await app.close();
+  });
+});

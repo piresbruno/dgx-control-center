@@ -10,6 +10,9 @@ import { ModelctlService, NAS_TTL_MS, NODE_TTL_MS } from "./modelctl/service.js"
 import { JobsManager } from "./jobs/jobsManager.js";
 import { jobArgv } from "./jobs/commands.js";
 import { RecipeStore, buildRecipeProbeCommand, parseRecipeProbe, validRecipePath } from "./serving/recipes.js";
+import { DeploymentStore, DeploymentSupervisor, joinServeState, type DeploymentRecord } from "./serving/deployments.js";
+import { checkMultiNode } from "./serving/multiNode.js";
+import type { FastifyRequest, FastifyReply } from "fastify";
 import { VERSION } from "@cc/shared";
 
 export interface AppOptions {
@@ -29,6 +32,10 @@ export interface AppOptions {
   jobsManager?: JobsManager;
   /** Serving recipe registry (M3). When set, /api/recipes routes go live. */
   recipeStore?: RecipeStore;
+  /** Deployment records (M3). With recipeStore, /api/serve routes go live. */
+  deploymentStore?: DeploymentStore;
+  /** Test seam: overrides the serve supervisor. */
+  serveSupervisor?: DeploymentSupervisor;
   /** Test seam: overrides the SSH run used by modelctl provisioning. */
   provisionTransport?: (script: string) => Promise<{ exitCode: number | null; stdout: string; stderr: string }>;
   /** SSH identity key passed to every node SSH call (CC_SSH_IDENTITY default). */
@@ -174,6 +181,101 @@ export function buildApp(opts: AppOptions = {}) {
       app.delete("/api/recipes/:id", async (request, reply) => {
         const { id } = request.params as { id: string };
         if (!recipeStore.remove(id)) return reply.code(404).send({ error: "unknown recipe" });
+        return { removed: true };
+      });
+    }
+
+    // ── Serve deployments (M3) ──
+    const deploymentStore = opts.deploymentStore;
+    if (recipeStore && deploymentStore) {
+      const supervisor =
+        opts.serveSupervisor ??
+        new DeploymentSupervisor({
+          jobs,
+          recipes: {
+            // RecipeRecord.meta is optional (zod default) — normalize to the
+            // supervisor's required shape.
+            get: (id: string) => {
+              const r = recipeStore.get(id);
+              return r ? { ...r, meta: r.meta ?? null, versions: r.versions ?? null } : null;
+            },
+          },
+          store: deploymentStore,
+        });
+      app.decorate("serveSupervisor", supervisor);
+
+      /** Observed state join for one deployment (pure factors from stores). */
+      const stateOf = (d: DeploymentRecord) => {
+        const recipe = recipeStore.get(d.recipeId);
+        const job = d.jobId ? (jobs.get(d.jobId) ?? null) : null;
+        const meta = (recipe?.meta ?? null) as { servedName?: string | null; nnodes?: number; workerIp?: string | null; headIp?: string | null } | null;
+        return joinServeState({
+          desired: d.desired,
+          orphaned: recipe?.orphaned ?? false,
+          job: job ? { state: job.state, exitCode: job.exitCode } : null,
+          probe: d.lastProbe,
+          ranks: d.lastProbe?.ranks ?? null,
+          servedName: meta?.servedName ?? null,
+        });
+      };
+
+      app.get("/api/serve/deployments", async () => ({
+        deployments: deploymentStore.list().map((d) => ({ ...d, state: stateOf(d) })),
+      }));
+
+      app.get("/api/serve/deployments/:id", async (request, reply) => {
+        const { id } = request.params as { id: string };
+        const d = deploymentStore.get(id);
+        if (!d) return reply.code(404).send({ error: "unknown deployment" });
+        return { ...d, state: stateOf(d) };
+      });
+
+      /** Create (or reuse) the single deployment slot for a recipe. */
+      app.post("/api/serve/deployments", async (request, reply) => {
+        const body = request.body as { recipeId?: string; entry?: string; port?: number; servedName?: string } | null;
+        const recipe = body?.recipeId ? recipeStore.get(body.recipeId) : null;
+        if (!recipe) return reply.code(404).send({ error: "unknown recipe" });
+        if (recipe.orphaned) return reply.code(409).send({ error: "recipe is orphaned (node removed)" });
+        const meta = (recipe.meta ?? null) as { port?: number | null; servedName?: string | null; entry?: string | null } | null;
+        const d = deploymentStore.upsertForRecipe(recipe.id, {
+          sparkId: recipe.sparkId,
+          entry: body?.entry ?? meta?.entry ?? recipe.entry,
+          port: body?.port ?? meta?.port ?? null,
+          servedName: body?.servedName ?? meta?.servedName ?? null,
+        });
+        return reply.code(201).send({ ...d, state: stateOf(d) });
+      });
+
+      /** Shared verb dispatch with error mapping. */
+      const verbRoute = (verb: "start" | "stop" | "restart" | "probe") => async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+        const { id } = request.params;
+        const d = deploymentStore.get(id);
+        if (!d) return reply.code(404).send({ error: "unknown deployment" });
+        if (verb === "start") {
+          const recipe = recipeStore.get(d.recipeId);
+          const meta = (recipe?.meta ?? null) as { nnodes?: number; workerIp?: string | null; headIp?: string | null } | null;
+          const guard = checkMultiNode(
+            { nnodes: meta?.nnodes ?? 1, workerIp: meta?.workerIp ?? null, headIp: meta?.headIp ?? null },
+            nodeDirectory.list().map((n) => ({ id: n.id, lanIp: n.lanIp ?? null, kind: n.kind, role: n.role })),
+          );
+          if (!guard.ok) return reply.code(409).send({ error: "multi-node guard refused start", guard });
+        }
+        const result = supervisor[verb](id);
+        if ("error" in result) {
+          const isConflict = result.error === "conflict";
+          return reply.code(isConflict ? 409 : 503).send({ error: result.error });
+        }
+        return reply.code(202).send({ reqId: result.reqId });
+      };
+
+      app.post("/api/serve/deployments/:id/start", verbRoute("start"));
+      app.post("/api/serve/deployments/:id/stop", verbRoute("stop"));
+      app.post("/api/serve/deployments/:id/restart", verbRoute("restart"));
+      app.post("/api/serve/deployments/:id/probe", verbRoute("probe"));
+
+      app.delete("/api/serve/deployments/:id", async (request, reply) => {
+        const { id } = request.params as { id: string };
+        if (!deploymentStore.remove(id)) return reply.code(404).send({ error: "unknown deployment" });
         return { removed: true };
       });
     }

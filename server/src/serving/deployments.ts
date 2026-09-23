@@ -294,10 +294,19 @@ export class DeploymentStore {
 
 export interface SupervisorDeps {
   jobs: JobsManager;
-  /** Recipe lookup for (path, entry, port, servedName). */
+  /** Recipe lookup for (path, entry, port, servedName) and versions. */
   recipes: {
-    get(id: string): { id: string; sparkId: string; path: string; entry: string | null; meta: { port: number | null; servedName: string | null; containers?: Record<string, string> } | null; versions: { gitHead: string | null; dirtyBuild: boolean } | null } | null;
+    get(id: string): {
+      id: string;
+      sparkId: string;
+      path: string;
+      entry: string | null;
+      meta: { port: number | null; servedName: string | null; containers?: Record<string, string> } | null;
+      versions: { gitHead: string | null; dirtyBuild: boolean } | null;
+    } | null;
   };
+  /** Deployment records; the supervisor mutates and persists through it. */
+  store: Pick<DeploymentStore, "get" | "upsertForRecipe">;
   now?: () => number;
   /** start/restart driver timeout (recipes can warm up for minutes). */
   startTimeoutMs?: number;
@@ -339,30 +348,21 @@ export class DeploymentSupervisor {
 
   /** Read-only observation probe (containers, health, model ids). */
   probe(deploymentId: string): { reqId: string } | { error: string } {
-    const d = this.deps.recipes ? this.findDeployment(deploymentId) : null;
+    const d = this.deps.store.get(deploymentId);
     if (!d) return { error: "unknown deployment" };
     const result = this.deps.jobs.dispatch(
       d.sparkId,
       "serve-probe",
       ["bash", "-c", buildServeProbeCommand(d.port)],
-      { timeoutMs: 30_000 },
+      { timeoutMs: this.deps.probeTimeoutMs ?? 30_000 },
     );
     if ("error" in result) return result;
     this.actions.set(result.reqId, { deploymentId, verb: "probe" });
     return { reqId: result.reqId };
   }
 
-  private findDeployment(deploymentId: string): DeploymentRecord | null {
-    // DeploymentStore lives with the recipes mapping in the REST layer; the
-    // supervisor resolves the deployment through the recipes lookup hook.
-    return this.deploymentLookup?.(deploymentId) ?? null;
-  }
-
-  /** Installed by the REST layer to resolve deployment records. */
-  deploymentLookup: ((id: string) => DeploymentRecord | null) | null = null;
-
   private dispatchVerb(deploymentId: string, verb: RecipeVerb): { reqId: string } | { error: string } {
-    const d = this.findDeployment(deploymentId);
+    const d = this.deps.store.get(deploymentId);
     if (!d) return { error: "unknown deployment" };
     const recipe = this.deps.recipes.get(d.recipeId);
     if (!recipe) return { error: "unknown recipe" };
@@ -385,29 +385,34 @@ export class DeploymentSupervisor {
     const action = this.actions.get(job.reqId);
     if (!action) return;
     this.actions.delete(job.reqId);
-    const d = this.findDeployment(action.deploymentId);
+    const d = this.deps.store.get(action.deploymentId);
     if (!d) return;
     if (action.verb === "probe") {
       if (job.state === "done") {
-        d.lastProbe = { ...parseServeProbe(job.output), ranks: rankStates(this.expectedFor(d), parseServeProbe(job.output)), parsedAt: Date.now() };
+        const parsed = parseServeProbe(job.output);
+        this.deps.store.upsertForRecipe(d.recipeId, { sparkId: d.sparkId }, {
+          lastProbe: { ...parsed, ranks: rankStates(this.expectedFor(d), parsed), parsedAt: Date.now() },
+        });
       }
-    } else if (action.verb === "start") {
-      d.jobState = job.state;
-      if (job.state === "done") {
-        d.startedWith = this.versionsFor(d.recipeId);
-        d.desired = "running";
-      }
-    } else if (action.verb === "stop") {
-      d.jobState = job.state;
-      if (job.state === "done") d.desired = "stopped";
-    } else {
-      d.jobState = job.state;
+      return;
     }
-    this.onDeploymentUpdated?.(d);
+    if (action.verb === "start") {
+      const patch: Partial<DeploymentRecord> = { jobState: job.state };
+      if (job.state === "done") {
+        patch.startedWith = this.versionsFor(d.recipeId);
+        patch.desired = "running";
+      }
+      this.deps.store.upsertForRecipe(d.recipeId, { sparkId: d.sparkId }, patch);
+      return;
+    }
+    if (action.verb === "stop") {
+      const patch: Partial<DeploymentRecord> = { jobState: job.state };
+      if (job.state === "done") patch.desired = "stopped";
+      this.deps.store.upsertForRecipe(d.recipeId, { sparkId: d.sparkId }, patch);
+      return;
+    }
+    this.deps.store.upsertForRecipe(d.recipeId, { sparkId: d.sparkId }, { jobState: job.state });
   }
-
-  /** Called after each merged update so the REST layer can persist. */
-  onDeploymentUpdated: ((d: DeploymentRecord) => void) | null = null;
 
   private expectedFor(d: DeploymentRecord): Record<string, string> {
     const recipe = this.deps.recipes.get(d.recipeId);

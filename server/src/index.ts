@@ -13,6 +13,7 @@ import { registerBrowserHub } from "./browserHub.js";
 import { ModelctlService, resolveModelctlPath } from "./modelctl/service.js";
 import { JobsManager } from "./jobs/jobsManager.js";
 import { RecipeStore } from "./serving/recipes.js";
+import { DeploymentStore } from "./serving/deployments.js";
 import type { AgentRegistry } from "./agentHub.js";
 
 const fakeFleet = process.argv.includes("--fake-fleet");
@@ -75,12 +76,14 @@ const jobsManager = new JobsManager({
   isConnected: (nodeId) => registryRef.current?.isConnected(nodeId) ?? false,
 });
 const recipeStore = new RecipeStore({ filePath: "config/serve-recipes.json" });
+const deploymentStore = new DeploymentStore({ filePath: "config/serve-deployments.json" });
 const app = buildApp({
   logger: true,
   nodeDirectory: directory,
   modelctl,
   jobsManager,
   recipeStore,
+  deploymentStore,
   sshIdentity: env.CC_SSH_IDENTITY,
 });
 const hub = registerAgentHub(app, hubDeps, (scope) =>

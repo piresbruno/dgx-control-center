@@ -172,9 +172,7 @@ describe("DeploymentSupervisor", () => {
             ? { id: "r2", sparkId: "dgx1", path: "/opt/recipes/X", entry: null, meta: null, versions: null }
             : null,
     };
-    const supervisor = new DeploymentSupervisor({ jobs, recipes });
-    supervisor.deploymentLookup = (id) => store.get(id);
-    supervisor.onDeploymentUpdated = (d) => store.upsertForRecipe(d.recipeId, { sparkId: d.sparkId }, {});
+    const supervisor = new DeploymentSupervisor({ jobs, recipes, store });
     const d = store.upsertForRecipe("r1", { sparkId: "dgx1", entry: "start.sh", port: 8081, servedName: "GLM" });
     return {
       supervisor,
