@@ -116,6 +116,32 @@ describe("joinServeState", () => {
   it("stopped when nothing runs", () => {
     expect(joinServeState({ desired: "stopped" }).state).toBe("stopped");
   });
+
+  it("a stale healthy probe must not keep a stopped deployment healthy", () => {
+    // Probe taken before the stop finished: no fresh signal → stopped, not healthy.
+    expect(
+      joinServeState({
+        desired: "stopped",
+        job: { state: "done", exitCode: 0 },
+        probe: { health: 200 },
+        probeStale: true,
+      }).state,
+    ).toBe("stopped");
+    // Containers still draining (stale ranks running) → stopping, never healthy.
+    expect(
+      joinServeState({
+        desired: "stopped",
+        job: { state: "done", exitCode: 0 },
+        probe: { health: 200 },
+        probeStale: true,
+        ranks: { H: "running" },
+      }).state,
+    ).toBe("stopping");
+    // A fresh probe on a stopped deployment with the API still up is real.
+    expect(
+      joinServeState({ desired: "stopped", probe: { health: 200 }, probeStale: false }).state,
+    ).toBe("healthy");
+  });
 });
 
 describe("DeploymentStore", () => {
@@ -214,7 +240,18 @@ describe("DeploymentSupervisor", () => {
     const result = h.supervisor.stop(h.deploymentId);
     if ("error" in result) throw new Error(result.error);
     h.finish(result.reqId, 1);
-    expect(h.store.get(h.deploymentId)).toMatchObject({ desired: "running", jobState: "failed" });
+    expect(h.store.get(h.deploymentId)!).toMatchObject({ desired: "running", jobState: "failed" });
+  });
+
+  it("auto-probes after a successful start so observation converges", async () => {
+    const h = await harness();
+    const start = h.supervisor.start(h.deploymentId);
+    if ("error" in start) throw new Error(start.error);
+    h.finish(start.reqId, 0);
+    // The follow-up dispatch must be the serve-probe script.
+    const probeJob = h.sent[h.sent.length - 1]!;
+    expect(probeJob.type).toBe("job-run");
+    expect(JSON.stringify(probeJob.argv)).toContain("__S_CONTAINERS__");
   });
 
   it("rejects verbs on unknown deployments and unprobed recipes", async () => {

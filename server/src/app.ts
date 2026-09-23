@@ -212,11 +212,14 @@ export function buildApp(opts: AppOptions = {}) {
         const recipe = recipeStore.get(d.recipeId);
         const job = d.jobId ? (jobs.get(d.jobId) ?? null) : null;
         const meta = (recipe?.meta ?? null) as { servedName?: string | null; nnodes?: number; workerIp?: string | null; headIp?: string | null } | null;
+        const probeParsedAt = d.lastProbe?.parsedAt ?? null;
+        const probeStale = probeParsedAt != null && job?.endedAt != null && probeParsedAt < job.endedAt;
         return joinServeState({
           desired: d.desired,
           orphaned: recipe?.orphaned ?? false,
           job: job ? { state: job.state, exitCode: job.exitCode } : null,
           probe: d.lastProbe,
+          probeStale,
           ranks: d.lastProbe?.ranks ?? null,
           servedName: meta?.servedName ?? null,
         });

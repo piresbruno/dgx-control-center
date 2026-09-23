@@ -128,6 +128,8 @@ export interface ServeStateFactors {
   job?: Pick<JobRecord, "state"> & { exitCode: number | null } | null;
   llm?: { available?: boolean; modelId?: string | null } | null;
   probe?: { health?: number | null; containers?: Record<string, string>; dockerError?: string; modelsRaw?: string | null } | null;
+  /** The probe predates the last finished verb — its health/containers are stale. */
+  probeStale?: boolean;
   ranks?: Record<string, "running" | "exited" | "absent" | "error"> | null;
   servedName?: string | null;
   engineIds?: string[] | null;
@@ -158,7 +160,9 @@ export function joinServeState(f: ServeStateFactors): ServeState {
   const seenIds = [...(f.llm?.modelId ? [f.llm.modelId] : []), ...(parseModelIds(f.probe?.modelsRaw) ?? [])];
   const idMatch =
     !f.servedName || seenIds.length === 0 ? null : seenIds.some((id) => normModel(id) === normModel(f.servedName));
-  const apiUp = Boolean(f.llm?.available || f.probe?.health === 200);
+  const apiUpBase = Boolean(f.llm?.available || f.probe?.health === 200);
+  // A probe taken before the stop finished must not keep reporting healthy.
+  const apiUp = apiUpBase && !(f.desired === "stopped" && f.probeStale);
 
   if (f.orphaned) return { state: "orphan", jobLive };
   if (jobLive && f.desired === "stopped") return { state: "stopping" };
@@ -403,12 +407,15 @@ export class DeploymentSupervisor {
         patch.desired = "running";
       }
       this.deps.store.upsertForRecipe(d.recipeId, { sparkId: d.sparkId }, patch);
+      // Refresh observation so the UI converges without a manual probe.
+      if (job.state === "done") void this.probe(action.deploymentId);
       return;
     }
     if (action.verb === "stop") {
       const patch: Partial<DeploymentRecord> = { jobState: job.state };
       if (job.state === "done") patch.desired = "stopped";
       this.deps.store.upsertForRecipe(d.recipeId, { sparkId: d.sparkId }, patch);
+      if (job.state === "done") void this.probe(action.deploymentId);
       return;
     }
     this.deps.store.upsertForRecipe(d.recipeId, { sparkId: d.sparkId }, { jobState: job.state });
