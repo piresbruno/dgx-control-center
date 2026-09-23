@@ -7,6 +7,8 @@ import { DesiredStateStore } from "./desiredState.js";
 import { Reconciler } from "./reconciler.js";
 import { openDb } from "./stores/db.js";
 import { MetricsStore } from "./stores/metricsStore.js";
+import { LiveState, type LiveSnapshot } from "./liveState.js";
+import { registerBrowserHub } from "./browserHub.js";
 
 const fakeFleet = process.argv.includes("--fake-fleet");
 const env = serverEnvSchema.parse(process.env);
@@ -19,10 +21,19 @@ await desired.load();
 const db = openDb(env.CC_DB_PATH);
 const metricsStore = new MetricsStore(db);
 
+const liveState = new LiveState({
+  describe: (id) => {
+    const node = directory.get(id);
+    return node ? { name: node.name, kind: node.kind, role: node.role } : null;
+  },
+  stateOf: (id) => reconciler?.stateOf(id) ?? "provisioning",
+});
+
 let reconciler: Reconciler | null = null;
 let fleet: FakeFleetHandle | null = null;
 const onAgentMessage = (sparkId: string, msg: AgentToServer) => {
   reconciler?.observeMessage(sparkId, msg);
+  liveState.observeMessage(sparkId, msg);
   if (msg.type === "metrics") metricsStore.ingest(sparkId, msg);
 };
 const hubDeps = fakeFleet
@@ -35,12 +46,27 @@ const hubDeps = fakeFleet
       onAgentMessage,
     };
 
-const app = buildApp({ logger: true, agentHubDeps: hubDeps });
+const broadcastListeners = new Set<(snapshot: LiveSnapshot) => void>();
+const broadcast = (): void => {
+  const snapshot = liveState.snapshot();
+  for (const cb of broadcastListeners) cb(snapshot);
+};
+
+const app = buildApp({ logger: true, agentHubDeps: hubDeps, nodeDirectory: directory });
+registerBrowserHub(app, () => liveState.snapshot(), (cb) => {
+  broadcastListeners.add(cb);
+  return () => broadcastListeners.delete(cb);
+});
 
 const registry = app.agentRegistry;
 if (registry) {
-  reconciler = new Reconciler({ directory, desired, registry });
-  // Reconciler tick + watchdog sweep (F1a); cadences move into settings at M1+.
+  reconciler = new Reconciler({
+    directory,
+    desired,
+    registry,
+    onStateChange: () => broadcast(),
+    onConfigUpdate: () => broadcast(),
+  });
   const ticker = setInterval(() => reconciler?.tick(Date.now()), 2_000);
   const watchdog = setInterval(() => registry.sweep(Date.now(), 30_000), 10_000);
   ticker.unref();
@@ -52,7 +78,10 @@ if (registry) {
 }
 
 // Metrics flush + retention prune (F5); cadences move into settings at M1+.
-const flushTimer = setInterval(() => metricsStore.flush(), 5_000);
+const flushTimer = setInterval(() => {
+  metricsStore.flush();
+  broadcast();
+}, 5_000);
 const pruneTimer = setInterval(() => metricsStore.prune(), 3_600_000);
 flushTimer.unref();
 pruneTimer.unref();
