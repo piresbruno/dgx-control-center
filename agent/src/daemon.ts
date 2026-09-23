@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
 import WebSocket from "ws";
 import { serverToAgent, type AgentToServer, type MetricsMsg, type ServerToAgent } from "@cc/shared";
 import { reconcileClocks, setDesiredProfile, type ClockApplier } from "./reconcile.js";
@@ -33,6 +34,21 @@ export type AgentDaemonState = "stopped" | "connecting" | "online" | "backoff";
  * serves welcome/config-update, pongs, pushes atomic seq'd snapshots, runs
  * jobs by argv. Survives dashboard loss via exponential reconnect backoff.
  */
+/**
+ * Jobs must survive restricted PATHs (systemd user units, non-login ssh):
+ * a bare command name resolves against $HOME/.local/bin before failing.
+ */
+export function resolveExecutable(name: string): string {
+  if (name.includes("/")) return name;
+  const fallback = `${process.env.HOME ?? ""}/.local/bin/${name}`;
+  try {
+    if (existsSync(fallback)) return fallback;
+  } catch {
+    // fall through to the bare name
+  }
+  return name;
+}
+
 export class AgentDaemon {
   private ws: WebSocket | null = null;
   private state: AgentDaemonState = "stopped";
@@ -230,7 +246,7 @@ export class AgentDaemon {
 
   private runJob(reqId: string, argv: string[], timeoutMs?: number): void {
     try {
-      const child = spawn(argv[0]!, argv.slice(1), { stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn(resolveExecutable(argv[0]!), argv.slice(1), { stdio: ["ignore", "pipe", "pipe"] });
       this.jobs.set(reqId, child);
       const emitOut = (stream: "out" | "err") => (chunk: Buffer) => {
         this.emit({ type: "job-out", reqId, stream, chunk: chunk.toString() });
