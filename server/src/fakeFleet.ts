@@ -14,7 +14,7 @@ export const FLEET_NODE_IDS = ["dgx1", "dgx2", "nas1"] as const;
 
 export function fakeFleetHubDeps(sink?: (sparkId: string, msg: AgentToServer) => void): AgentHubDeps {
   return {
-    validToken: (t) => t === FLEET_TOKEN,
+    agentToken: () => FLEET_TOKEN,
     isKnownNode: (id) => (FLEET_NODE_IDS as readonly string[]).includes(id),
     nodeConfig: (id) => ({
       intervals: { system: 1000 },

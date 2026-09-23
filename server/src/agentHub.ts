@@ -26,8 +26,8 @@ export interface NodeRuntimeConfig {
 }
 
 export interface AgentHubDeps {
-  /** Token check — injected so rotations never touch global state. */
-  validToken(token: string): boolean;
+  /** Current agent token — the hub compares hello tokens against it. */
+  agentToken(): string;
   isKnownNode(sparkId: string): boolean;
   nodeConfig(sparkId: string): NodeRuntimeConfig;
   /** Version floor (ADR-0002); agents below it are refused with 4004. */
@@ -164,7 +164,7 @@ export function registerAgentHub(app: FastifyInstance, deps: AgentHubDeps): Agen
           return;
         }
         const { sparkId, token, proto, agentVersion } = hello.data;
-        if (!deps.validToken(token)) {
+        if (token !== deps.agentToken()) {
           socket.close(CLOSE_BAD_TOKEN, "bad token");
           return;
         }

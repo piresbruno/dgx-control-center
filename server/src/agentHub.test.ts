@@ -17,7 +17,7 @@ const TOKEN = "a".repeat(64);
 
 function makeDeps(overrides: Partial<AgentHubDeps> = {}): AgentHubDeps {
   return {
-    validToken: (t) => t === TOKEN,
+    agentToken: () => TOKEN,
     isKnownNode: (id) => ["dgx1", "dgx2"].includes(id),
     nodeConfig: (id) => ({
       intervals: { system: 1000 },

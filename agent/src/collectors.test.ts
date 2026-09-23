@@ -63,9 +63,9 @@ describe("samplers", () => {
   it("cpu sampler: first tick null load, second tick delta-based load", async () => {
     const reads = [PROC_STAT_1, PROC_STAT_2];
     const cpu = createCpuSampler({ readFile: async () => reads.shift() ?? PROC_STAT_2 });
-    const first = await cpu();
+    const first = await cpu(1000);
     expect(first).toMatchObject({ loadPct: 0 });
-    const second = await cpu();
+    const second = await cpu(2000);
     // busy Δ150, idle Δ-220 clamp → total negative → loadPct 0 (never negative)
     expect(second?.loadPct).toBeGreaterThanOrEqual(0);
   });
@@ -74,19 +74,19 @@ describe("samplers", () => {
     const cpu = createCpuSampler({
       readFile: async (path) => (path === "/proc/cpuinfo" ? "processor\t: 0\nprocessor\t: 1\nprocessor\t: 2\n" : PROC_STAT_1),
     });
-    expect(await cpu()).toMatchObject({ coreCount: 3 });
+    expect(await cpu(1000)).toMatchObject({ coreCount: 3 });
   });
 
   it("gpu sampler returns null when nvidia-smi is missing", async () => {
     const gpu = createGpuSampler({ exec: async () => { throw new Error("ENOENT"); } });
-    expect(await gpu()).toBeNull();
+    expect(await gpu(1000)).toBeNull();
   });
 
   it("gpu sampler parses real output", async () => {
     const gpu = createGpuSampler({ exec: async () => ({ stdout: "50, 55, [N/A], [N/A], 2200, 180\n" }) });
-    expect(await gpu()).toEqual([
+    expect(await gpu(1000)).toEqual({ gpus: [
       { index: 0, utilPct: 50, tempC: 55, memUsedMb: null, memTotalMb: null, clockMhz: 2200, watts: 180 },
-    ]);
+    ] });
   });
 
   it("net sampler computes rates from deltas between ticks", async () => {

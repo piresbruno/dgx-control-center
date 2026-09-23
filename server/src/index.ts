@@ -28,7 +28,7 @@ const onAgentMessage = (sparkId: string, msg: AgentToServer) => {
 const hubDeps = fakeFleet
   ? fakeFleetHubDeps(onAgentMessage)
   : {
-      validToken: (t: string) => t === (process.env.CC_AGENT_TOKEN ?? "dev-agent-token"),
+      agentToken: () => process.env.CC_AGENT_TOKEN ?? "dev-agent-token",
       isKnownNode: (id: string) => directory.isKnown(id),
       nodeConfig: (id: string) => desired.toRuntimeConfig(id),
       minAgentVersion: "0.1.0",

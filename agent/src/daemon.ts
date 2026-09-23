@@ -14,7 +14,7 @@ export interface AgentDaemonOptions {
   llmPorts: number[];
   /** Metric cadence per domain, ms; the `system` domain drives the main loop. */
   intervals: Record<string, number>;
-  collect: (domain: string, ts: number) => Record<string, unknown> | null;
+  collect: (domain: string, ts: number) => Promise<Record<string, unknown> | null> | Record<string, unknown> | null;
   /** Injectable timers (deterministic tests); defaults to globalThis. */
   timers?: Pick<typeof globalThis, "setInterval" | "clearInterval" | "setTimeout">;
   /** Reconnect backoff bounds, ms (F1a: 1s → 30s). */
@@ -211,16 +211,20 @@ export class AgentDaemon {
     const cadence = this.config.intervals["system"] ?? 1_000;
     const timers = this.opts.timers ?? globalThis;
     this.metricTimer = timers.setInterval(() => {
-      const ts = Date.now();
-      const domains: Record<string, unknown> = {};
-      for (const domain of Object.keys(this.config.intervals)) {
-        const sample = this.opts.collect(domain, ts);
-        if (sample) domains[domain] = sample;
-      }
-      const msg: MetricsMsg = { type: "metrics", seq: ++this.seq, ts, domains };
-      this.lastMetrics = msg;
-      this.emit(msg);
+      void this.tickMetrics();
     }, cadence);
+  }
+
+  private async tickMetrics(): Promise<void> {
+    const ts = Date.now();
+    const domains: Record<string, unknown> = {};
+    for (const domain of Object.keys(this.config.intervals)) {
+      const sample = await this.opts.collect(domain, ts);
+      if (sample) domains[domain] = sample;
+    }
+    const msg: MetricsMsg = { type: "metrics", seq: ++this.seq, ts, domains };
+    this.lastMetrics = msg;
+    this.emit(msg);
   }
 
   private runJob(reqId: string, argv: string[], timeoutMs?: number): void {

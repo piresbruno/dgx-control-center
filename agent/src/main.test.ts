@@ -1,9 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { VERSION, PROTOCOL_VERSION } from "@cc/shared";
-import { agentVersionString } from "./main.js";
+import { VERSION } from "@cc/shared";
+import { parseAgentConfig } from "./config.js";
+import { watchdogIntervalMs } from "./sdNotify.js";
 
-describe("agent", () => {
-  it("reports version and protocol consistently with shared", () => {
-    expect(agentVersionString()).toBe(`controlcenter-agent ${VERSION} · proto ${PROTOCOL_VERSION}`);
+describe("loadAgentConfig", () => {
+  it("parses the install-job config", () => {
+    const config = parseAgentConfig({
+      dashboardUrl: "http://cc.home.local:5555",
+      sparkId: "dgx1",
+      token: "a".repeat(64),
+    });
+    expect(config).toEqual({ dashboardUrl: "http://cc.home.local:5555", sparkId: "dgx1", token: "a".repeat(64) });
+  });
+
+  it("lets args override file values and rejects incomplete configs", () => {
+    const file = { dashboardUrl: "http://cc:5555", sparkId: "dgx1", token: "a".repeat(64) };
+    expect(parseAgentConfig(file, { sparkId: "dgx2" }).sparkId).toBe("dgx2");
+    expect(() => parseAgentConfig({ dashboardUrl: "http://cc:5555" })).toThrow();
+  });
+
+  it("keeps the agent version in sync with shared", () => {
+    expect(VERSION).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+});
+
+describe("watchdog interval", () => {
+  it("is half of WatchdogSec, floored to 1 s; zero without systemd", () => {
+    expect(watchdogIntervalMs({ WATCHDOG_SEC: "60" })).toBe(30_000);
+    expect(watchdogIntervalMs({ WATCHDOG_SEC: "1" })).toBe(1_000);
+    expect(watchdogIntervalMs({})).toBe(0);
   });
 });

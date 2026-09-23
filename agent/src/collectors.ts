@@ -148,10 +148,10 @@ export function parseStatFs(
 // ── stateful samplers ───────────────────────────────────────────────────
 
 /** CPU sampler: utilization from /proc/stat deltas between ticks. */
-export function createCpuSampler(deps: CollectorsDeps) {
+export function createCpuSampler(deps: CollectorsDeps): (ts: number) => Promise<Record<string, unknown> | null> {
   const readFile = deps.readFile ?? defaultReadFile;
   let prev: { busy: number; idle: number } | null = null;
-  return async (): Promise<CpuSample | null> => {
+  return async (): Promise<Record<string, unknown> | null> => {
     try {
       const text = await readFile("/proc/stat");
       const cur = parseCpuStat(text);
@@ -174,16 +174,16 @@ export function createCpuSampler(deps: CollectorsDeps) {
 }
 
 /** GPU sampler via nvidia-smi (absent binary ⇒ null sample, no throw). */
-export function createGpuSampler(deps: CollectorsDeps) {
+export function createGpuSampler(deps: CollectorsDeps): (ts: number) => Promise<Record<string, unknown> | null> {
   const exec = deps.exec ?? defaultExec;
   const args = [
     "--query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,clocks.current.graphics,power.draw",
     "--format=csv,noheader,nounits",
   ];
-  return async (): Promise<GpuSample[] | null> => {
+  return async (): Promise<Record<string, unknown> | null> => {
     try {
       const { stdout } = await exec("nvidia-smi", args);
-      return parseGpuSmi(stdout);
+      return { gpus: parseGpuSmi(stdout) };
     } catch {
       return null;
     }
@@ -191,7 +191,7 @@ export function createGpuSampler(deps: CollectorsDeps) {
 }
 
 /** Network sampler: interface totals + rate deltas between ticks. */
-export function createNetSampler(deps: CollectorsDeps) {
+export function createNetSampler(deps: CollectorsDeps): (ts: number) => Promise<Record<string, unknown> | null> {
   const readFile = deps.readFile ?? defaultReadFile;
   let prev: { ts: number; totals: NetDevTotals } | null = null;
   return async (ts: number): Promise<{ rxKbps: number; txKbps: number; totals: NetDevTotals } | null> => {
@@ -219,7 +219,7 @@ export function createNetSampler(deps: CollectorsDeps) {
 }
 
 /** Storage sampler via statfs on the configured path. */
-export function createStorageSampler(deps: CollectorsDeps) {
+export function createStorageSampler(deps: CollectorsDeps): (ts: number) => Promise<Record<string, unknown> | null> {
   const statFs = deps.statFs ?? defaultStatFs;
   const path = deps.storagePath ?? "/";
   return async () => {
@@ -235,7 +235,9 @@ export function createStorageSampler(deps: CollectorsDeps) {
  * Assemble the domain map consumed by the daemon: gpu, cpu, memory, network,
  * storage. Each sampler is fault-isolated — a throw becomes null.
  */
-export function buildCollectors(deps: CollectorsDeps = {}): Record<string, (ts: number) => Promise<unknown>> {
+export type DomainCollector = (ts: number) => Promise<Record<string, unknown> | null>;
+
+export function buildCollectors(deps: CollectorsDeps = {}): Record<string, DomainCollector> {
   const cpu = createCpuSampler(deps);
   const gpu = createGpuSampler(deps);
   const net = createNetSampler(deps);
@@ -250,7 +252,7 @@ export function buildCollectors(deps: CollectorsDeps = {}): Record<string, (ts: 
     }
   };
 
-  const isolated = (fn: (ts: number) => Promise<unknown>) => async (ts: number) => {
+  const isolated = (fn: (ts: number) => Promise<Record<string, unknown> | null>): DomainCollector => async (ts) => {
     try {
       return await fn(ts);
     } catch {
