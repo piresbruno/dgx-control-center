@@ -30,6 +30,11 @@ export const welcomeMsg = z.object({
     role: z.enum(["head", "worker", "standalone"]),
     /** Desired clock profile — agent re-applies locally on boot (F1a/M5). */
     clockProfileId: z.string().nullable().optional(),
+    /** Concrete resolved caps for the profile (null = uncapped). */
+    clockCaps: z
+      .object({ gpuMaxMhz: z.number().nullable(), cpuMaxMhz: z.number().nullable() })
+      .nullable()
+      .optional(),
   }),
 });
 export type WelcomeMsg = z.infer<typeof welcomeMsg>;

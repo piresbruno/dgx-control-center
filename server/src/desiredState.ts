@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { atomicWriteJson, readJson } from "./util/atomicWrite.js";
 import type { NodeRuntimeConfig } from "./agentHub.js";
+import { profileById, resolveProfile } from "./power/profiles.js";
 
 /**
  * Desired per-node state (F1a): the reconciler's source of truth, persisted
@@ -65,6 +66,14 @@ export class DesiredStateStore {
 
   toRuntimeConfig(nodeId: string): NodeRuntimeConfig {
     const d = this.get(nodeId);
-    return { intervals: d.intervals, llmPorts: d.llmPorts, role: d.role, clockProfileId: d.clockProfileId };
+    const profile = d.clockProfileId ? profileById(d.clockProfileId) : null;
+    const resolved = profile ? resolveProfile(profile, null) : null;
+    return {
+      intervals: d.intervals,
+      llmPorts: d.llmPorts,
+      role: d.role,
+      clockProfileId: d.clockProfileId,
+      clockCaps: resolved ? { gpuMaxMhz: resolved.gpuMaxMhz, cpuMaxMhz: resolved.cpuMaxMhz } : null,
+    };
   }
 }

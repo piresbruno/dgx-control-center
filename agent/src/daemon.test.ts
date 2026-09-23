@@ -149,24 +149,24 @@ describe("AgentDaemon", () => {
   it("reconciles the clock profile from welcome and on boot (edge autonomy)", async () => {
     const dir = await mkdtemp(join(tmpdir(), "cc-daemon-clock-"));
     const stateFile = join(dir, "state.json");
-    const applied: Array<string | null> = [];
-    const applier = { applyProfile: async (p: string | null) => void applied.push(p) };
+    const applied: Array<{ profileId: string | null; caps: unknown }> = [];
+    const applier = { applyProfile: async (p: { profileId: string | null; caps: unknown }) => void applied.push(p) };
 
     const dash = await startDashboard({ intervals: { cpu: 20 }, llmPorts: [8888], role: "head", clockProfileId: "cool" });
     const daemon = makeDaemon(dash, { stateFile, clockApplier: applier });
     daemon.start();
     await vi.waitFor(() => expect(daemon.getState()).toBe("online"));
-    await vi.waitFor(() => expect(applied).toEqual(["cool"]));
+    await vi.waitFor(() => expect(applied).toEqual([{ profileId: "cool", caps: null }]));
     daemon.stop();
     await dash.close();
 
     // Node reboot: fresh daemon, same state file → profile re-applied without dashboard config change.
-    const appliedAgain: Array<string | null> = [];
+    const appliedAgain: Array<{ profileId: string | null; caps: unknown }> = [];
     const dash2 = await startDashboard();
     const daemon2 = makeDaemon(dash2, { stateFile, clockApplier: { applyProfile: async (p) => void appliedAgain.push(p) } });
     daemon2.start();
     await vi.waitFor(() => expect(daemon2.getState()).toBe("online"));
-    await vi.waitFor(() => expect(appliedAgain).toEqual(["cool"]));
+    await vi.waitFor(() => expect(appliedAgain).toEqual([{ profileId: "cool", caps: null }]));
     daemon2.stop();
     await dash2.close();
   });

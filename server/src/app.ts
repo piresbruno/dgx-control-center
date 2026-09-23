@@ -83,6 +83,8 @@ export interface AppOptions {
   upstreamAuth?: string | null;
   /** Desired clock profiles (M5). When set, /api/power/clocks routes go live. */
   clockStore?: ClockProfileStore;
+  /** Desired-state store (M5): clock desires write through so the reconciler pushes config-update. */
+  desiredStore?: import("./desiredState.js").DesiredStateStore;
 }
 
 /**
@@ -662,6 +664,7 @@ export function buildApp(opts: AppOptions = {}) {
         const body = request.body as { profile?: string } | null;
         const rec = body?.profile ? clockStore.set(sparkId, body.profile) : null;
         if (!rec) return reply.code(400).send({ error: "unknown profile" });
+        await opts.desiredStore?.patch(sparkId, { clockProfileId: rec.profile });
         const profile = profileById(rec.profile)!;
         return { sparkId, desired: rec.profile, resolved: resolveProfile(profile, null) };
       });

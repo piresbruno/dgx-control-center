@@ -85,6 +85,8 @@ const servedModelsStore = new ServedModelsStore({ filePath: "config/served-model
 const clientsStore = new ClientsStore({ filePath: "config/clients.json" });
 const deploymentStore = new DeploymentStore({ filePath: "config/serve-deployments.json" });
 const clockStore = new ClockProfileStore({ filePath: "config/clock-profiles.json" });
+// ClockProfileStore is the UI registry; desired-state.json stays the single
+// reconciler source of truth — desires write through on set.
 const app = buildApp({
   logger: true,
   nodeDirectory: directory,
@@ -95,6 +97,7 @@ const app = buildApp({
   servedModelsStore,
   clientsStore,
   clockStore,
+  desiredStore: desired,
   tracesStore: new TracesStore({ db }),
   traceQueries: new TraceQueries(db),
   upstreamAuth: env.CC_UPSTREAM_AUTH ?? null,

@@ -62,6 +62,8 @@ export class AgentDaemon {
     intervals: Record<string, number>;
     llmPorts: number[];
     role: "head" | "worker" | "standalone";
+    clockProfileId?: string | null;
+    clockCaps?: { gpuMaxMhz: number | null; cpuMaxMhz: number | null } | null;
   };
 
   constructor(private readonly opts: AgentDaemonOptions) {
@@ -210,8 +212,9 @@ export class AgentDaemon {
   private ingestClockProfile(profileId: string | null | undefined): Promise<void> {
     const { stateFile, clockApplier } = this.opts;
     if (!stateFile || !clockApplier || profileId === undefined) return Promise.resolve();
+    const caps = this.config.clockCaps ?? null;
     this.reconcileChain = this.reconcileChain.then(async () => {
-      await setDesiredProfile(stateFile, profileId);
+      await setDesiredProfile(stateFile, profileId, caps);
       const outcome = await reconcileClocks(stateFile, clockApplier);
       this.log(
         outcome.applied
