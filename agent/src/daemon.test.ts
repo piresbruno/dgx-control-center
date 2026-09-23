@@ -1,3 +1,6 @@
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { WebSocketServer, type WebSocket } from "ws";
 import type { MetricsMsg } from "@cc/shared";
@@ -13,7 +16,13 @@ interface Dashboard {
   close(): Promise<void>;
 }
 
-async function startDashboard(config = { intervals: { system: 20 }, llmPorts: [8888], role: "head" as const }) {
+async function startDashboard(
+  config: { intervals: Record<string, number>; llmPorts: number[]; role: "head" | "worker" | "standalone"; clockProfileId?: string } = {
+    intervals: { system: 20 },
+    llmPorts: [8888],
+    role: "head",
+  },
+) {
   const dash: Dashboard = {
     url: "",
     hellos: [],
@@ -67,6 +76,7 @@ function makeDaemon(dash: Dashboard, overrides: Partial<ConstructorParameters<ty
     collect: (domain, ts) => (domain === "system" ? { loadPct: 42, ts } : null),
     backoffMinMs: 10,
     backoffMaxMs: 50,
+    onLog: (l) => console.error(`[daemon] ${l}`),
     ...overrides,
   });
 }
@@ -134,6 +144,31 @@ describe("AgentDaemon", () => {
 
     daemon.stop();
     await dash.close();
+  });
+
+  it("reconciles the clock profile from welcome and on boot (edge autonomy)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-daemon-clock-"));
+    const stateFile = join(dir, "state.json");
+    const applied: Array<string | null> = [];
+    const applier = { applyProfile: async (p: string | null) => void applied.push(p) };
+
+    const dash = await startDashboard({ intervals: { system: 20 }, llmPorts: [8888], role: "head", clockProfileId: "cool" });
+    const daemon = makeDaemon(dash, { stateFile, clockApplier: applier });
+    daemon.start();
+    await vi.waitFor(() => expect(daemon.getState()).toBe("online"));
+    await vi.waitFor(() => expect(applied).toEqual(["cool"]));
+    daemon.stop();
+    await dash.close();
+
+    // Node reboot: fresh daemon, same state file → profile re-applied without dashboard config change.
+    const appliedAgain: Array<string | null> = [];
+    const dash2 = await startDashboard();
+    const daemon2 = makeDaemon(dash2, { stateFile, clockApplier: { applyProfile: async (p) => void appliedAgain.push(p) } });
+    daemon2.start();
+    await vi.waitFor(() => expect(daemon2.getState()).toBe("online"));
+    await vi.waitFor(() => expect(appliedAgain).toEqual(["cool"]));
+    daemon2.stop();
+    await dash2.close();
   });
 
   it("stops cleanly and halts the metric loop", async () => {

@@ -65,6 +65,6 @@ export class DesiredStateStore {
 
   toRuntimeConfig(nodeId: string): NodeRuntimeConfig {
     const d = this.get(nodeId);
-    return { intervals: d.intervals, llmPorts: d.llmPorts, role: d.role };
+    return { intervals: d.intervals, llmPorts: d.llmPorts, role: d.role, clockProfileId: d.clockProfileId };
   }
 }

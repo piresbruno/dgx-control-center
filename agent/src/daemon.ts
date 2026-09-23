@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import WebSocket from "ws";
 import { serverToAgent, type AgentToServer, type MetricsMsg, type ServerToAgent } from "@cc/shared";
+import { reconcileClocks, setDesiredProfile, type ClockApplier } from "./reconcile.js";
 
 /** Ports-and-adapters: collectors are injected (F1a testability). */
 export type DomainCollector = (ts: number) => Record<string, unknown>;
@@ -19,6 +20,9 @@ export interface AgentDaemonOptions {
   /** Reconnect backoff bounds, ms (F1a: 1s → 30s). */
   backoffMinMs?: number;
   backoffMaxMs?: number;
+  /** Edge autonomy (F1a): persist desired clock profile + re-apply on boot. */
+  stateFile?: string;
+  clockApplier?: ClockApplier;
   onLog?: (line: string) => void;
 }
 
@@ -37,6 +41,7 @@ export class AgentDaemon {
   private metricTimer: NodeJS.Timeout | null = null;
   private seq = 0;
   private jobs = new Map<string, ChildProcess>();
+  private reconcileChain: Promise<void> = Promise.resolve();
   private config: {
     intervals: Record<string, number>;
     llmPorts: number[];
@@ -53,7 +58,22 @@ export class AgentDaemon {
 
   start(): void {
     this.stopped = false;
-    this.dial();
+    // Boot path: re-apply the persisted clock profile BEFORE contacting the
+    // dashboard (node boot resets clocks). Serialized with welcome-driven
+    // applies so they can never interleave.
+    this.reconcileChain = this.reconcileChain
+      .then(() => this.reconcileClocks())
+      .then(() => this.dial())
+      .catch((err) => this.log(`start chain failed: ${String(err)}`));
+  }
+
+  /** Boot path: re-apply the persisted clock profile without the dashboard. */
+  private async reconcileClocks(): Promise<void> {
+    const { stateFile, clockApplier } = this.opts;
+    if (!stateFile || !clockApplier) return;
+    // force: a node boot resets clocks, so the profile is always re-applied.
+    const outcome = await reconcileClocks(stateFile, clockApplier, Date.now(), { force: true });
+    this.log(outcome.applied ? "clocks reconciled (boot)" : `clocks reconcile skipped: ${outcome.error ?? "up-to-date"}`);
   }
 
   stop(): void {
@@ -100,7 +120,7 @@ export class AgentDaemon {
     ws.on("message", (raw: Buffer) => {
       const parsed = serverToAgent.safeParse(JSON.parse(raw.toString()));
       if (!parsed.success) return;
-      this.handle(parsed.data);
+      void this.handle(parsed.data).catch((err) => this.log(`frame error: ${String(err)}`));
     });
 
     ws.on("close", () => {
@@ -122,15 +142,17 @@ export class AgentDaemon {
     timers.setTimeout(() => this.dial(), delay);
   }
 
-  private handle(msg: ServerToAgent): void {
+  private async handle(msg: ServerToAgent): Promise<void> {
     switch (msg.type) {
       case "welcome":
         this.config = msg.config;
+        await this.ingestClockProfile(msg.config.clockProfileId);
         this.setState("online");
         this.startMetricLoop();
         return;
       case "config-update":
         this.config = msg.config;
+        await this.ingestClockProfile(msg.config.clockProfileId);
         this.startMetricLoop(); // restart with new cadences
         return;
       case "ping":
@@ -166,6 +188,22 @@ export class AgentDaemon {
       (this.opts.timers ?? globalThis).clearInterval(this.metricTimer);
       this.metricTimer = null;
     }
+  }
+
+  /** Persist a pushed clock profile and reconcile toward it (F1a edge autonomy). */
+  private ingestClockProfile(profileId: string | null | undefined): Promise<void> {
+    const { stateFile, clockApplier } = this.opts;
+    if (!stateFile || !clockApplier || profileId === undefined) return Promise.resolve();
+    this.reconcileChain = this.reconcileChain.then(async () => {
+      await setDesiredProfile(stateFile, profileId);
+      const outcome = await reconcileClocks(stateFile, clockApplier);
+      this.log(
+        outcome.applied
+          ? `clock profile applied: ${profileId ?? "default"}`
+          : `clock apply skipped: ${outcome.error ?? "up-to-date"}`,
+      );
+    });
+    return this.reconcileChain;
   }
 
   private startMetricLoop(): void {

@@ -21,6 +21,8 @@ export interface NodeRuntimeConfig {
   intervals: Record<string, number>;
   llmPorts: number[];
   role: "head" | "worker" | "standalone";
+  /** Desired clock profile (F1a edge autonomy: agent re-applies on boot). */
+  clockProfileId?: string | null;
 }
 
 export interface AgentHubDeps {

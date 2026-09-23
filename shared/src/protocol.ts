@@ -28,6 +28,8 @@ export const welcomeMsg = z.object({
     intervals: z.record(z.string(), z.number().int().positive()),
     llmPorts: z.array(z.number().int().min(1).max(65535)),
     role: z.enum(["head", "worker", "standalone"]),
+    /** Desired clock profile — agent re-applies locally on boot (F1a/M5). */
+    clockProfileId: z.string().nullable().optional(),
   }),
 });
 export type WelcomeMsg = z.infer<typeof welcomeMsg>;
