@@ -5,6 +5,7 @@ import type { AgentToServer } from "@cc/shared";
 import { NodeDirectory } from "./nodeDirectory.js";
 import { DesiredStateStore } from "./desiredState.js";
 import { Reconciler } from "./reconciler.js";
+import { registerAgentHub } from "./agentHub.js";
 import { openDb } from "./stores/db.js";
 import { MetricsStore } from "./stores/metricsStore.js";
 import { LiveState, type LiveSnapshot } from "./liveState.js";
@@ -52,13 +53,24 @@ const broadcast = (): void => {
   for (const cb of broadcastListeners) cb(snapshot);
 };
 
-const app = buildApp({ logger: true, agentHubDeps: hubDeps, nodeDirectory: directory });
-registerBrowserHub(app, () => liveState.snapshot(), (cb) => {
-  broadcastListeners.add(cb);
-  return () => broadcastListeners.delete(cb);
-});
+if (fakeFleet) {
+  // The fake fleet must be registered nodes so the reconciler tracks them.
+  await directory.upsert({ id: "dgx1", name: "dgx1", kind: "spark", role: "head", llmPorts: [8888] });
+  await directory.upsert({ id: "dgx2", name: "dgx2", kind: "spark", role: "worker", llmPorts: [8889] });
+  await directory.upsert({ id: "nas1", name: "nas1", kind: "nas", role: "standalone" });
+}
 
-const registry = app.agentRegistry;
+const app = buildApp({ logger: true, nodeDirectory: directory });
+const hub = registerAgentHub(app, hubDeps, (scope) =>
+  registerBrowserHub(scope, () => liveState.snapshot(), (cb) => {
+    broadcastListeners.add(cb);
+    return () => broadcastListeners.delete(cb);
+  }),
+);
+app.decorate("agentRegistry", hub);
+
+
+const registry = hub;
 if (registry) {
   reconciler = new Reconciler({
     directory,

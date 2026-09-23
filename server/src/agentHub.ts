@@ -139,12 +139,18 @@ export class AgentRegistry {
 }
 
 /** Registers /agent-ws: first-message handshake, then validated dispatch. */
-export function registerAgentHub(app: FastifyInstance, deps: AgentHubDeps): AgentRegistry {
+export function registerAgentHub(
+  app: FastifyInstance,
+  deps: AgentHubDeps,
+  extraWsRoutes?: (scope: FastifyInstance) => void,
+): AgentRegistry {
   const registry = new AgentRegistry();
-  // The route must register inside the @fastify/websocket scope — its onRoute
-  // hook (installed by that plugin) is what marks the route as a WS route.
+  // All WS routes must register inside the @fastify/websocket scope — its
+  // onRoute hook (installed by that plugin) marks routes as WS routes, and the
+  // plugin must be registered exactly once (decorator 'ws').
   app.register(websocket);
   app.register((scope) => {
+    extraWsRoutes?.(scope);
     scope.get("/agent-ws", { websocket: true }, (socket) => {
     let auth: { sparkId: string } | null = null;
 

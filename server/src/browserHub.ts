@@ -1,15 +1,16 @@
 import type { FastifyInstance } from "fastify";
-import websocket from "@fastify/websocket";
 import type { LiveState, LiveSnapshot } from "./liveState.js";
 
-/** Registers /ws: browser push channel — immediate snapshot, then deltas. */
+/**
+ * Registers /ws INSIDE the @fastify/websocket scope opened by registerAgentHub
+ * (the plugin may only be registered once per instance).
+ */
 export function registerBrowserHub(
-  app: FastifyInstance,
+  scope: FastifyInstance,
   getSnapshot: () => LiveSnapshot,
   subscribe?: (cb: (snapshot: LiveSnapshot) => void) => () => void,
 ): void {
-  app.register(websocket);
-  app.register((scope) => {
+  {
     scope.get("/ws", { websocket: true }, (socket) => {
       socket.send(JSON.stringify({ type: "snapshot", ...getSnapshot() }));
       if (subscribe) {
@@ -24,5 +25,5 @@ export function registerBrowserHub(
         // Browsers receive; stray frames are ignored (OS-level keepalive).
       });
     });
-  });
+  }
 }
