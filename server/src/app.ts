@@ -4,6 +4,7 @@ import type { AgentHubDeps } from "./agentHub.js";
 import { registerAgentHub } from "./agentHub.js";
 import { runInstallAgent, type BootstrapTransport } from "./bootstrap/installAgent.js";
 import { runSsh } from "./transport/ssh.js";
+import { provisionModelctl, checkModelctl } from "./bootstrap/provisionModelctl.js";
 import type { NodeDirectory } from "./nodeDirectory.js";
 import { ModelctlService, NAS_TTL_MS, NODE_TTL_MS } from "./modelctl/service.js";
 import { JobsManager } from "./jobs/jobsManager.js";
@@ -25,6 +26,8 @@ export interface AppOptions {
   nodeInventoryRunner?: (host: string, user: string, args: string[]) => Promise<string>;
   /** Remote job tracking (M2). Default: a disconnected no-op manager. */
   jobsManager?: JobsManager;
+  /** Test seam: overrides the SSH run used by modelctl provisioning. */
+  provisionTransport?: (script: string) => Promise<{ exitCode: number | null; stdout: string; stderr: string }>;
 }
 
 /**
@@ -88,6 +91,34 @@ export function buildApp(opts: AppOptions = {}) {
     app.get("/api/models", async () =>
       modelctl.inventory({ targetId: "nas", args: ["list", "--json"], ttlMs: NAS_TTL_MS }),
     );
+
+    /** Validate modelctl on a node (doctor check, installs nothing). */
+    app.get("/api/nodes/:id/modelctl-check", async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const node = nodeDirectory.get(id);
+      if (!node) return reply.code(404).send({ error: "unknown node" });
+      if (!node.lanIp || !node.sshUser) {
+        return reply.code(400).send({ error: "node lacks lanIp or sshUser — set them in Edit node" });
+      }
+      const transport =
+        opts.provisionTransport ??
+        ((script: string) => runSsh({ host: node.lanIp!, user: node.sshUser! }, script, { timeoutMs: 30_000 }));
+      return checkModelctl({ host: node.lanIp, user: node.sshUser }, { transport });
+    });
+
+    /** Install/repair modelctl + uv on a node (bootstrap/repair per ADR-0002). */
+    app.post("/api/nodes/:id/provision-modelctl", async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const node = nodeDirectory.get(id);
+      if (!node) return reply.code(404).send({ error: "unknown node" });
+      if (!node.lanIp || !node.sshUser) {
+        return reply.code(400).send({ error: "node lacks lanIp or sshUser — set them in Edit node" });
+      }
+      const transport =
+        opts.provisionTransport ??
+        ((script: string) => runSsh({ host: node.lanIp!, user: node.sshUser! }, script, { timeoutMs: 300_000 }));
+      return provisionModelctl({ host: node.lanIp, user: node.sshUser }, { transport });
+    });
 
     /** Node-local cache inventory over SSH (modelctl runs on the node). */
     app.get("/api/nodes/:id/models", async (request, reply) => {

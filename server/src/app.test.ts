@@ -120,6 +120,25 @@ describe("remote jobs API (M2)", () => {
   });
 });
 
+describe("modelctl provisioning API (M2)", () => {
+  it("provisions via SSH transport and returns the outcome", async () => {
+    const dir = await testDirectory();
+    const app = buildApp({
+      nodeDirectory: dir,
+      provisionTransport: async () => ({
+        exitCode: 0,
+        stdout: `__CC_MODELCTL__:${JSON.stringify({ ok: true, mode: "installed", version: "modelctl 0.20.1", reason: null })}`,
+        stderr: "",
+      }),
+    });
+    await dir.upsert({ id: "dgx2", name: "dgx-2", kind: "spark", role: "worker", lanIp: "10.0.0.12", sshUser: "piresbruno" });
+    const res = await app.inject({ method: "POST", url: "/api/nodes/dgx2/provision-modelctl" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ ok: true, mode: "installed" });
+    await app.close();
+  });
+});
+
 describe("GET /api/health", () => {
   it("returns ok with the shared version", async () => {
     const app = buildApp();
