@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { buildApplyScript, buildClockStatusCommand, buildInstallClockScript } from "../power/helper.js";
 
 /**
  * Server-side job command registry: REST clients name a KIND + params; the
@@ -26,6 +27,15 @@ export const jobParamsSchemas = {
   "modelctl-sync-local": z.object({ model: repoId }).strict(),
   "modelctl-push": z.object({ model: repoId, host: hostname }).strict(),
   "modelctl-delete-local": z.object({ model: repoId }).strict(),
+  "clock-status": z.object({}).strict().default({}),
+  "clock-install": z.object({ user: hostname }).strict(),
+  "clock-apply": z
+    .object({
+      gpuMaxMhz: z.number().int().min(1).max(100000).nullable().optional(),
+      cpuMaxMhz: z.number().int().min(1).max(10000000).nullable().optional(),
+    })
+    .strict()
+    .refine((v) => v.gpuMaxMhz != null || v.cpuMaxMhz != null, "at least one cap required"),
 } as const;
 
 export type JobKind = keyof typeof jobParamsSchemas;
@@ -53,6 +63,21 @@ export function jobArgv(kind: string, params: unknown = {}): string[] | null {
       return ["modelctl", "push", "--host", p.host!, p.model!];
     case "modelctl-delete-local":
       return ["modelctl", "delete-local", p.model!];
+    case "clock-status":
+      return ["bash", "-c", buildClockStatusCommand()];
+    case "clock-install":
+      return ["bash", "-c", buildInstallClockScript(p.user!)];
+    case "clock-apply": {
+      const ops: string[] = [];
+      if (p.gpuMaxMhz != null) ops.push(`sudo -n /usr/local/bin/cc-clock gpu-lock ${p.gpuMaxMhz}`);
+      if (p.cpuMaxMhz != null) ops.push(`sudo -n /usr/local/bin/cc-clock cpu-max ${Number(p.cpuMaxMhz) * 1000}`);
+      const script = [
+        "test -x /usr/local/bin/cc-clock || { echo 'cc-clock helper missing — run Install clock control first' >&2; exit 127; }",
+        "sudo -n /usr/local/bin/cc-clock check 2>/dev/null || { echo 'passwordless sudo for cc-clock required — install first' >&2; exit 126; }",
+        ...ops,
+      ].join("\n");
+      return ["bash", "-c", script];
+    }
     default:
       return null;
   }
