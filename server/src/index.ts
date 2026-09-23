@@ -1,9 +1,12 @@
 import { buildApp } from "./app.js";
 import { serverEnvSchema } from "./config.js";
 import { fakeFleetHubDeps, startFakeFleet, type FakeFleetHandle } from "./fakeFleet.js";
+import type { AgentToServer } from "@cc/shared";
 import { NodeDirectory } from "./nodeDirectory.js";
 import { DesiredStateStore } from "./desiredState.js";
 import { Reconciler } from "./reconciler.js";
+import { openDb } from "./stores/db.js";
+import { MetricsStore } from "./stores/metricsStore.js";
 
 const fakeFleet = process.argv.includes("--fake-fleet");
 const env = serverEnvSchema.parse(process.env);
@@ -13,16 +16,23 @@ const desired = new DesiredStateStore({ file: "config/desired-state.json" });
 await directory.load();
 await desired.load();
 
+const db = openDb(env.CC_DB_PATH);
+const metricsStore = new MetricsStore(db);
+
 let reconciler: Reconciler | null = null;
 let fleet: FakeFleetHandle | null = null;
+const onAgentMessage = (sparkId: string, msg: AgentToServer) => {
+  reconciler?.observeMessage(sparkId, msg);
+  if (msg.type === "metrics") metricsStore.ingest(sparkId, msg);
+};
 const hubDeps = fakeFleet
-  ? fakeFleetHubDeps()
+  ? fakeFleetHubDeps(onAgentMessage)
   : {
       validToken: (t: string) => t === (process.env.CC_AGENT_TOKEN ?? "dev-agent-token"),
       isKnownNode: (id: string) => directory.isKnown(id),
       nodeConfig: (id: string) => desired.toRuntimeConfig(id),
       minAgentVersion: "0.1.0",
-      onAgentMessage: (sparkId: string, msg: { type: string }) => reconciler?.observeMessage(sparkId, msg),
+      onAgentMessage,
     };
 
 const app = buildApp({ logger: true, agentHubDeps: hubDeps });
@@ -40,6 +50,18 @@ if (registry) {
     clearInterval(watchdog);
   });
 }
+
+// Metrics flush + retention prune (F5); cadences move into settings at M1+.
+const flushTimer = setInterval(() => metricsStore.flush(), 5_000);
+const pruneTimer = setInterval(() => metricsStore.prune(), 3_600_000);
+flushTimer.unref();
+pruneTimer.unref();
+app.addHook("onClose", async () => {
+  clearInterval(flushTimer);
+  clearInterval(pruneTimer);
+  metricsStore.flush();
+  db.close();
+});
 if (fakeFleet) {
   app.addHook("onClose", () => fleet?.stop());
 }
