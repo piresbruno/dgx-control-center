@@ -1,0 +1,14 @@
+services:
+  controlcenter:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    ports:
+      - "5555:5555"
+    volumes:
+      # ADR-0003: file-backed SQLite + JSON config survive rebuilds here
+      - ./config:/app/config
+    restart: unless-stopped
+    # Host networking is the alternative when the gateway must reach
+    # loopback-bound engines on this same machine:
+    # network_mode: host

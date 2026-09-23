@@ -1,0 +1,18 @@
+{
+  "project": {
+    "name": "controlcenter",
+    "description": "Control plane for a home LocalAI infrastructure: DGX Spark cluster + NAS model store, recipe-based serving, OpenAI-compatible gateway with per-client telemetry, and power management.",
+    "build_command": "npm run build",
+    "test_command": "npm test",
+    "run_command": "npm run dev",
+    "ticket_prefix": "CC"
+  },
+  "features": {
+    "platforms": ["claude", "codex", "pi", "opencode"],
+    "mcp": true,
+    "agents": true,
+    "github": true,
+    "scheduled_audit": true,
+    "hooks": true
+  }
+}

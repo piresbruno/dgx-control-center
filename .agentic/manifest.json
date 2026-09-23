@@ -1,0 +1,178 @@
+{
+  "schema": "agentic-bootstrap-manifest/v1",
+  "generator_version": "0.1.0",
+  "platforms": [
+    "claude",
+    "codex",
+    "pi",
+    "opencode"
+  ],
+  "updated_at": "2026-09-23T09:28:11+00:00",
+  "files": {
+    ".agentic/bin/docs-check": {
+      "sha256": "bb84a835599d8b9052231ffe59fae3b1ee29ea9d22345632143f9be03be16e9e",
+      "executable": true,
+      "mutable": false
+    },
+    ".agentic/bin/validate": {
+      "sha256": "1a42e3bb7c0d24343fd606d47489c188ec45bb42e08ee283b667727b8295d256",
+      "executable": true,
+      "mutable": false
+    },
+    ".agentic/config.json": {
+      "sha256": "faf075871bb69839b4e79756177b3213e09cf88d2d68c538c162e7d3329678e0",
+      "executable": false,
+      "mutable": false
+    },
+    ".agents/skills/agentic-bootstrap/SKILL.md": {
+      "sha256": "34c051e3bbdb73a46e6646d2e27c49061f8cbc9caf52dad4a656fe6fa838dd52",
+      "executable": false,
+      "mutable": false
+    },
+    ".agents/skills/architecture-decision/SKILL.md": {
+      "sha256": "5900634095efa33248ec470b7edb8d3cc1bfd9fa9c70fdf93297eaf898d472f6",
+      "executable": false,
+      "mutable": false
+    },
+    ".agents/skills/docs-check/SKILL.md": {
+      "sha256": "5ee4f597f7c892832bb8b6144040e2b37d8dc4c50b0261a8f34b6a9971687235",
+      "executable": false,
+      "mutable": false
+    },
+    ".agents/skills/semantic-versioning/SKILL.md": {
+      "sha256": "6e45cb6f4cced3a19c3f1ba2765491643c0e4d53ebe18ae81a0a90ea5cddb67b",
+      "executable": false,
+      "mutable": false
+    },
+    ".claude/agents/architecture-reviewer.md": {
+      "sha256": "606c211ced5bca36810d3d23196489ce8dafdbfb90575a3a483545af5fe450a0",
+      "executable": false,
+      "mutable": false
+    },
+    ".claude/skills/agentic-bootstrap/SKILL.md": {
+      "sha256": "34c051e3bbdb73a46e6646d2e27c49061f8cbc9caf52dad4a656fe6fa838dd52",
+      "executable": false,
+      "mutable": false
+    },
+    ".claude/skills/architecture-decision/SKILL.md": {
+      "sha256": "5900634095efa33248ec470b7edb8d3cc1bfd9fa9c70fdf93297eaf898d472f6",
+      "executable": false,
+      "mutable": false
+    },
+    ".claude/skills/docs-check/SKILL.md": {
+      "sha256": "5ee4f597f7c892832bb8b6144040e2b37d8dc4c50b0261a8f34b6a9971687235",
+      "executable": false,
+      "mutable": false
+    },
+    ".claude/skills/semantic-versioning/SKILL.md": {
+      "sha256": "6e45cb6f4cced3a19c3f1ba2765491643c0e4d53ebe18ae81a0a90ea5cddb67b",
+      "executable": false,
+      "mutable": false
+    },
+    ".codex/agents/architecture-reviewer.toml": {
+      "sha256": "89e86813846d92c4082f2da0b824cb55aac979f858cb5b5c8a7fcc6ca6a49838",
+      "executable": false,
+      "mutable": false
+    },
+    ".codex/config.toml": {
+      "sha256": "2288aa973d4bc1c18e405ac21f1b418242a37a05784be8072f960d1598a65cd8",
+      "executable": false,
+      "mutable": false
+    },
+    ".githooks/pre-commit": {
+      "sha256": "55892f096dcd235cf2ea7f443179b616f3955a5fbba6b63295644403ced774fc",
+      "executable": true,
+      "mutable": false
+    },
+    ".github/workflows/docs-check.yml": {
+      "sha256": "1b988df684bac295555e3e2f19aa8d89b77683fe670d537b8d6bf1da4fa2c88d",
+      "executable": false,
+      "mutable": false
+    },
+    ".mcp.json": {
+      "sha256": "fce4dbd6f3476e6ba72f643e541aa12c70b4a13f129021b9cbcca3fd3bece200",
+      "executable": false,
+      "mutable": false
+    },
+    ".opencode/agents/architecture-reviewer.md": {
+      "sha256": "179074fdc69ba4ad772971640c89ad1ddf3f5be312fd274fc1d6ecd9d44b387e",
+      "executable": false,
+      "mutable": false
+    },
+    ".opencode/commands/adr-new.md": {
+      "sha256": "ed62a494012e9942e5e170c8b2b5c5adb121e347ca66e961d3bb50e02adb787d",
+      "executable": false,
+      "mutable": false
+    },
+    ".opencode/commands/docs-check.md": {
+      "sha256": "01b9c8d39d087ba559b89f08ca2fa7094b7664fad1c082ed719586521a13d7a8",
+      "executable": false,
+      "mutable": false
+    },
+    "AGENTS.md": {
+      "sha256": "7630ed522e36c778fb7e0322efd002ca458e73727c34113945a86cb60e838bd0",
+      "executable": false,
+      "mutable": true
+    },
+    "CLAUDE.md": {
+      "sha256": "e8e81f6d799757ab9cf23736906fbf493ef2e70ae4b41f74ecb296465eae48ec",
+      "executable": false,
+      "mutable": false
+    },
+    "docs/AGENT_GUIDED.md": {
+      "sha256": "126b9c980a22b6aacfaa892b09134202edc6e47be5b2b910501ae7ba0d95be21",
+      "executable": false,
+      "mutable": true
+    },
+    "docs/ARCHITECTURE.md": {
+      "sha256": "77a50031fc214d045e8410ebee3a1e857c07b8d8431d1614d30aeba3de148c1c",
+      "executable": false,
+      "mutable": true
+    },
+    "docs/DEVELOPMENT_PROCESS.md": {
+      "sha256": "74807a06e8374e449eeec8be178646314e2489f212ced3f1d77198d9e7311a3f",
+      "executable": false,
+      "mutable": true
+    },
+    "docs/PLATFORM_SUPPORT.md": {
+      "sha256": "24bd853bd0393c8ac470ecdcaa4d1b82814603efb3ce71d5fda96ccdd287e58a",
+      "executable": false,
+      "mutable": false
+    },
+    "docs/README.md": {
+      "sha256": "77ba02ca03f198b61cac4f6960d22dd48a059e2297fcbbef164b77eabca76081",
+      "executable": false,
+      "mutable": true
+    },
+    "docs/RELEASING.md": {
+      "sha256": "e43012e3a80fc492960eab8828aaab1502f779bccd4e42a11cdf32d0e5af6e8a",
+      "executable": false,
+      "mutable": true
+    },
+    "docs/adr/README.md": {
+      "sha256": "c2f34f20977eee5b10a5a4e402d8f786f6e05cfb34a8646b27033c1e831e1dce",
+      "executable": false,
+      "mutable": true
+    },
+    "docs/adr/template.md": {
+      "sha256": "7590bd3618a846e6d023b9c8c06d7870ae53a9d0bed9066c4e7032e34ac93985",
+      "executable": false,
+      "mutable": true
+    },
+    "opencode.json": {
+      "sha256": "aa63589a169f189695bc06794d8f188d7d2dc621393004e25b993bc98fd79836",
+      "executable": false,
+      "mutable": false
+    },
+    "setup-hooks.sh": {
+      "sha256": "b37dec28205144f21f031bef86a15e0e307f23b681d4d4ca2f81ef25a9f375a4",
+      "executable": true,
+      "mutable": false
+    },
+    "tasks/task-template.md": {
+      "sha256": "21354702cba1d186de1ebaf5304af7955ec027cc83dbc84de6e7a76b34678430",
+      "executable": false,
+      "mutable": true
+    }
+  }
+}

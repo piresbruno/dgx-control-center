@@ -1,0 +1,9 @@
+**/node_modules
+**/dist
+**/coverage
+.git
+design
+docs
+config
+*.md
+!README.md

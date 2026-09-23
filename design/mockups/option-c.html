@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Option C — Slate Pro · ControlCenter design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="assets/pulse.css"/>
+<script>if (location.hash === "#dark") document.documentElement.dataset.theme = "dark";</script>
+<style>
+  /* Option C — Slate Pro: flat monochrome, sharp geometry, ink primary. */
+  :root {
+    --bg: #fbfbfc;
+    --accent: #2563eb;
+    --accent-dim: rgba(37, 99, 235, 0.08);
+    --hairline: rgba(16, 24, 40, 0.12);
+    --hairline-2: rgba(16, 24, 40, 0.22);
+    --r-sm: 5px; --r-md: 6px; --r-lg: 8px;
+  }
+  .panel { box-shadow: none; }
+  body { font-size: 13.5px; }
+  .btn.primary { background: #101828; color: #fff; }
+  .btn.primary:hover { background: #1d2939; }
+  .nav-item.active { background: var(--accent-dim); color: var(--text-1); }
+  .kpi { padding: 18px 20px; }
+  .kpi .value { font-size: 24px; }
+  .pill { border-radius: 4px; }
+  .chip { border-radius: 4px; }
+  .meter { border-radius: 2px; }
+  .node-icon { background: var(--overlay); }
+  .node-icon svg { color: var(--text-2); }
+  .ep.prox { color: var(--text-1); }
+  /* Slate Pro dark — cool near-black map */
+  [data-theme="dark"] {
+    --bg: #0d0f13;
+    --surface: #14161b;
+    --raised: #1b1e25;
+    --overlay: #232732;
+    --hairline: rgba(255, 255, 255, 0.1);
+    --hairline-2: rgba(255, 255, 255, 0.2);
+    --text-1: #e8ebf1;
+    --text-2: #9aa4b6;
+    --text-3: #626c80;
+    --accent: #5b8def;
+    --accent-dim: rgba(91, 141, 239, 0.14);
+    --series-1: #5b8def; --series-2: #7d8798; --series-5: #d97706;
+  }
+  [data-theme="dark"] .btn.primary { background: #e7ebf2; color: #10151d; }
+  [data-theme="dark"] .btn.primary:hover { background: #f4f6fa; }
+  [data-theme="dark"] .node-icon { background: var(--overlay); }
+  [data-theme="dark"] .node-icon svg { color: var(--text-2); }
+  .opt-banner {
+    margin: 0 0 24px; padding: 14px 20px; border-radius: var(--r-md);
+    background: var(--surface); border: 1px solid var(--hairline);
+    display: flex; align-items: center; gap: 14px;
+  }
+  .opt-banner b { font-size: 15px; }
+  .opt-banner .desc { color: var(--text-2); font-size: 13px; }
+  .opt-banner .links { margin-left: auto; display: flex; gap: 8px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar"></aside>
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb">Fleet <span>·</span> <b>Overview</b></div>
+      <div class="spacer"></div>
+      <div class="palette-hint">Search, jump, command… <kbd>⌘K</kbd></div>
+      <div class="row" style="gap:10px">
+        <button class="btn ghost sm" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme==='dark'?'':'dark'" title="Toggle theme">◐</button>
+        <span class="live-dot"></span><span class="tiny dim num" data-clock></span>
+      </div>
+    </div>
+
+    <div class="page">
+      <div class="opt-banner">
+        <span class="pill accent">Option C</span>
+        <div><b>Slate Pro</b><div class="desc">Flat and austere — near-monochrome ink UI, sharp geometry, blue reserved for active/focus, primary buttons in ink. The Notion/Retool register.</div></div>
+        <div class="links"><a class="btn sm" href="option-a.html">Compare A →</a><a class="btn sm" href="option-b.html">Compare B →</a></div>
+      </div>
+
+      <div class="page-head">
+        <div class="page-title">
+          <h1>Fleet overview</h1>
+          <div class="sub">2× DGX Spark (GB10) · QNAP NAS store · gateway on <span class="key-chip" style="margin-left:4px"><span class="k">v1</span> http://cc.home.local/v1</span></div>
+        </div>
+        <div class="page-actions">
+          <div class="seg"><button class="on">Live</button><button>1 h</button><button>24 h</button><button>7 d</button></div>
+          <button class="btn">Add node</button>
+        </div>
+      </div>
+
+      <div class="grid cols-4">
+        <div class="panel kpi"><div class="label">Nodes online</div><div class="value">3<small> / 3</small></div><div class="delta"><span class="up">▲ all healthy</span> · 41 d uptime</div><div class="spark" id="k1"></div></div>
+        <div class="panel kpi"><div class="label">Requests / min</div><div class="value num">142</div><div class="delta">▲ 12 % vs 1 h ago</div><div class="spark" id="k2"></div></div>
+        <div class="panel kpi"><div class="label">Fleet throughput</div><div class="value num">1 284<small>tok/s</small></div><div class="delta">TTFT p95 214 ms</div><div class="spark" id="k3"></div></div>
+        <div class="panel kpi"><div class="label">Power now</div><div class="value num">386<small>W</small></div><div class="delta">18.9 kWh today · Cool profile</div><div class="spark" id="k4"></div></div>
+      </div>
+
+      <div class="grid cols-3" style="margin-top:20px">
+        <div class="panel node-card">
+          <div class="head">
+            <div class="node-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg></div>
+            <div style="flex:1"><div class="name">dgx1 <span class="faint tiny">· head</span></div><div class="meta">GB10 · 126 GB UMA · 10.0.30.11</div></div>
+            <span class="pill ok"><span class="dot"></span>Agent v3</span>
+          </div>
+          <div class="gauge-row"><span>GPU</span><div class="meter"><i style="width:78%;background:var(--series-1)"></i></div><span class="v">78 % · 64 °C</span></div>
+          <div class="gauge-row"><span>UMA</span><div class="meter"><i style="width:69%;background:var(--series-3)"></i></div><span class="v">87 / 126 GB</span></div>
+          <div class="gauge-row"><span>CPU</span><div class="meter"><i style="width:41%;background:var(--series-2)"></i></div><span class="v">41 %</span></div>
+          <div class="row between" style="border-top:1px solid var(--hairline);padding-top:12px">
+            <span class="chip mono">GLM-5.3-Flash-EXL3</span>
+            <span class="tiny num dim">316 tok/s · 202 W</span>
+          </div>
+        </div>
+
+        <div class="panel node-card">
+          <div class="head">
+            <div class="node-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg></div>
+            <div style="flex:1"><div class="name">dgx2 <span class="faint tiny">· worker</span></div><div class="meta">GB10 · 126 GB UMA · 10.0.30.12</div></div>
+            <span class="pill ok"><span class="dot"></span>Agent v3</span>
+          </div>
+          <div class="gauge-row"><span>GPU</span><div class="meter"><i style="width:64%;background:var(--series-1)"></i></div><span class="v">64 % · 61 °C</span></div>
+          <div class="gauge-row"><span>UMA</span><div class="meter"><i style="width:55%;background:var(--series-3)"></i></div><span class="v">69 / 126 GB</span></div>
+          <div class="gauge-row"><span>CPU</span><div class="meter"><i style="width:22%;background:var(--series-2)"></i></div><span class="v">22 %</span></div>
+          <div class="row between" style="border-top:1px solid var(--hairline);padding-top:12px">
+            <span class="chip mono">Qwen3.6-27B-NVFP4</span>
+            <span class="tiny num dim">198 tok/s · 184 W</span>
+          </div>
+        </div>
+
+        <div class="panel node-card">
+          <div class="head">
+            <div class="node-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="7" cy="6" r="1" fill="currentColor"/><circle cx="7" cy="12" r="1" fill="currentColor"/><circle cx="7" cy="18" r="1" fill="currentColor"/></svg></div>
+            <div style="flex:1"><div class="name">qnap-nas <span class="faint tiny">· model store</span></div><div class="meta">modelctl root /mnt/nas/llm-models</div></div>
+            <span class="pill"><span class="dot"></span>SSH</span>
+          </div>
+          <div class="gauge-row"><span>Store</span><div class="meter"><i style="width:58%;background:var(--series-4)"></i></div><span class="v">5.8 / 10 TB</span></div>
+          <div class="gauge-row"><span>Net</span><div class="meter"><i style="width:12%;background:var(--series-2)"></i></div><span class="v">112 MB/s</span></div>
+          <div class="gauge-row"><span>CPU</span><div class="meter"><i style="width:8%;background:var(--series-2)"></i></div><span class="v">8 %</span></div>
+          <div class="row between" style="border-top:1px solid var(--hairline);padding-top:12px">
+            <span class="chip">62 models · catalog ok</span>
+            <a class="btn ghost sm" href="#">Open store →</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-main-side" style="margin-top:20px">
+        <div class="panel" style="margin:0">
+          <div class="panel-head">
+            <h3>Fleet LLM throughput</h3><span class="sub">live · 5 s</span>
+            <div class="right">
+              <span class="lgd"><i style="background:var(--series-1)"></i>decode tok/s</span>
+              <span class="lgd"><i style="background:var(--series-3)"></i>prefill tok/s</span>
+            </div>
+          </div>
+          <div class="panel-body"><div id="fleetChart" style="height:200px"></div></div>
+        </div>
+
+        <div class="panel" style="margin:0">
+          <div class="panel-head"><h3>Alerts</h3><span class="pill warn">2 open</span></div>
+          <div class="panel-body" style="display:flex;flex-direction:column;gap:14px">
+            <div>
+              <div class="row between"><b class="small">dgx2 GPU 66 °C sustained</b><span class="tiny faint num">28 m</span></div>
+              <div class="tiny dim" style="margin-top:3px">Above 64 °C threshold · thermal guard suggests Cool profile</div>
+              <button class="btn sm" style="margin-top:9px">Apply Cool</button>
+            </div>
+            <div class="divider" style="margin:0"></div>
+            <div>
+              <div class="row between"><b class="small">Deployment drift: glm-5.3</b><span class="tiny faint num">2 h</span></div>
+              <div class="tiny dim" style="margin-top:3px">Recipe folder HEAD moved (a41f09c → 7c22de0) · restart to pick up</div>
+              <button class="btn sm" style="margin-top:9px">Restart</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:20px">
+        <div class="panel-head"><h3>Components</h3><span class="sub">same primitives under every option</span></div>
+        <div class="panel-body" style="display:flex;flex-direction:column;gap:16px">
+          <div class="row">
+            <button class="btn primary">Start deployment</button>
+            <button class="btn">Restart</button>
+            <button class="btn ghost">Logs</button>
+            <button class="btn danger">Stop node</button>
+          </div>
+          <div class="row" style="flex-wrap:wrap">
+            <span class="pill ok"><span class="dot"></span>healthy</span>
+            <span class="pill info"><span class="dot"></span>starting</span>
+            <span class="pill warn"><span class="dot"></span>drift</span>
+            <span class="pill crit"><span class="dot"></span>failed</span>
+            <span class="pill accent">on-demand</span>
+            <span class="chip mono">vLLM 0.11.2</span>
+            <span class="key-chip"><span class="k">key</span> cc-sk-9f2e…d41c</span>
+          </div>
+          <table class="dt">
+            <thead><tr><th>Deployment</th><th>Node</th><th class="num">TTFT p95</th><th class="num">tok/s</th><th>State</th></tr></thead>
+            <tbody>
+              <tr><td class="mono strong" style="font-size:12.5px">glm-5.3-flash</td><td>dgx1 + dgx2</td><td class="num">312 ms</td><td class="num">642</td><td><span class="pill ok"><span class="dot"></span>healthy</span></td></tr>
+              <tr><td class="mono strong" style="font-size:12.5px">qwen3.6-27b</td><td>dgx2</td><td class="num">128 ms</td><td class="num">198</td><td><span class="pill ok"><span class="dot"></span>healthy</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="note">◈ Option C — Slate Pro. All data static. Dark theme = same token map.</div>
+    </div>
+  </div>
+</div>
+<script src="assets/pulse.js"></script>
+<script>
+  renderNav("design-system");
+  sparkline(document.getElementById("k1"), series(40, { base: 3, amp: 0.3, seed: 11 }), { color: "var(--series-7)", fill: false });
+  sparkline(document.getElementById("k2"), series(40, { base: 140, amp: 40, seed: 13 }), { color: "var(--series-1)", fill: false });
+  sparkline(document.getElementById("k3"), series(40, { base: 1200, amp: 220, seed: 14 }), { color: "var(--series-1)", fill: false });
+  sparkline(document.getElementById("k4"), series(40, { base: 380, amp: 70, seed: 15 }), { color: "var(--series-5)", fill: false });
+  areaChart(document.getElementById("fleetChart"), [
+    { data: series(60, { base: 1250, amp: 260, seed: 31 }), color: "var(--series-1)" },
+    { data: series(60, { base: 2400, amp: 380, seed: 32 }), color: "var(--series-3)", area: false, dash: true },
+  ], { h: 200, yFmt: (v) => Math.round(v) });
+</script>
+</body>
+</html>

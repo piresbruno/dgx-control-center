@@ -1,0 +1,16 @@
+# runtime config + state (volume-mounted in prod)
+config/
+*.sqlite
+*.sqlite3
+*.db
+
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+
+.DS_Store
+._.DS_Store

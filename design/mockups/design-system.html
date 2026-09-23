@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Design system options · ControlCenter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="assets/pulse.css"/>
+<style>
+  .opt-card { display: flex; flex-direction: column; overflow: hidden; }
+  .opt-card .thumb { height: 132px; border-bottom: 1px solid var(--hairline); display: flex; align-items: flex-end; gap: 10px; padding: 16px; }
+  .thumb .tcard { background: #fff; border: 1px solid rgba(15,23,42,.12); border-radius: 8px; width: 118px; height: 64px; padding: 9px; display: flex; flex-direction: column; gap: 5px; box-shadow: 0 4px 14px rgba(15,23,42,.08); }
+  .thumb .tline { height: 6px; border-radius: 3px; background: #e6e9ef; }
+  .thumb .tline.acc { background: var(--accent); width: 46%; }
+  .thumb .tpill { height: 12px; width: 34px; border-radius: 999px; }
+  .opt-card .body { padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .opt-card h3 { font-size: 15px; }
+  .opt-card p { margin: 0; color: var(--text-2); font-size: 13px; flex: 1; }
+  .opt-card .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar"></aside>
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb">ControlCenter <span>·</span> <b>Design system — options</b></div>
+      <div class="spacer"></div>
+      <span class="pill accent">enterprise blue · light-first · airy</span>
+    </div>
+
+    <div class="page">
+      <div class="page-head">
+        <div class="page-title">
+          <h1>Pulse DS — pick a direction</h1>
+          <div class="sub">Three skins from the same airy, light-first foundation. Each opens on the live Overview mockup with identical content — only the skin changes.</div>
+        </div>
+      </div>
+
+      <div class="grid cols-3">
+        <a class="panel opt-card" href="option-a.html">
+          <div class="thumb" style="background:#f4f6f9">
+            <div class="tcard" style="border-radius:10px">
+              <div class="tline acc" style="background:#3b6ff5"></div><div class="tline" style="width:80%"></div><div class="tline" style="width:60%"></div>
+              <div style="display:flex;gap:5px;margin-top:auto"><span class="tpill" style="background:#3b6ff5"></span><span class="tpill" style="background:#e6e9ef"></span></div>
+            </div>
+            <div class="tcard" style="border-radius:10px;height:44px;opacity:.75"><div class="tline" style="width:70%"></div><div class="tline" style="width:50%"></div></div>
+          </div>
+          <div class="body">
+            <h3>A · Meridian</h3>
+            <p>Crisp classic enterprise. Cool gray canvas, solid blue accent, 1-px definition, zero shadows. Datadog / Linear register.</p>
+            <div class="tags"><span class="chip">radius 10</span><span class="chip">flat borders</span><span class="chip">accent #3b6ff5</span></div>
+          </div>
+        </a>
+
+        <a class="panel opt-card" href="option-b.html">
+          <div class="thumb" style="background:#f7f7f5">
+            <div class="tcard" style="border-radius:16px;box-shadow:0 6px 18px rgba(16,24,40,.1)">
+              <div class="tline acc" style="background:#3056d3;border-radius:999px"></div><div class="tline" style="width:80%;border-radius:999px"></div><div class="tline" style="width:60%;border-radius:999px"></div>
+              <div style="display:flex;gap:5px;margin-top:auto"><span class="tpill" style="background:#3056d3"></span><span class="tpill" style="background:#e9e7e3"></span></div>
+            </div>
+            <div class="tcard" style="border-radius:16px;height:44px;opacity:.75"><div class="tline" style="width:70%;border-radius:999px"></div><div class="tline" style="width:50%;border-radius:999px"></div></div>
+          </div>
+          <div class="body">
+            <h3>B · Softline</h3>
+            <p>Soft modern SaaS. Warm canvas, generous radii, gentle shadows, rounded controls. Stripe / Vercel-dashboard register.</p>
+            <div class="tags"><span class="chip">radius 16</span><span class="chip">soft shadows</span><span class="chip">accent #3056d3</span></div>
+          </div>
+        </a>
+
+        <a class="panel opt-card" href="option-c.html" style="outline:2px solid var(--accent)">
+          <div class="thumb" style="background:#fbfbfc">
+            <div class="tcard" style="border-radius:6px;box-shadow:none">
+              <div class="tline acc" style="background:#101828"></div><div class="tline" style="width:80%"></div><div class="tline" style="width:60%"></div>
+              <div style="display:flex;gap:5px;margin-top:auto"><span class="tpill" style="background:#101828;border-radius:4px"></span><span class="tpill" style="background:#e4e7ec;border-radius:4px"></span></div>
+            </div>
+            <div class="tcard" style="border-radius:6px;height:44px;opacity:.75;box-shadow:none"><div class="tline" style="width:70%"></div><div class="tline" style="width:50%"></div></div>
+          </div>
+          <div class="body">
+            <h3>C · Slate Pro <span class="pill ok" style="vertical-align:2px"><span class="dot"></span>selected</span></h3>
+            <p>Flat and austere. Near-monochrome ink UI, sharp geometry, blue reserved for active/focus, ink primary buttons. Notion / Retool register.</p>
+            <div class="tags"><span class="chip">radius 6</span><span class="chip">no shadows</span><span class="chip">ink primary</span></div>
+          </div>
+        </a>
+      </div>
+
+      <div class="panel" style="margin-top:20px">
+        <div class="panel-head"><h3>Shared foundation (identical across options)</h3></div>
+        <div class="panel-body" style="display:flex;flex-wrap:wrap;gap:24px">
+          <div><div class="tiny faint" style="text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Density</div><div class="small">Airy executive — max 4 KPIs + 2 panels per view; depth in Inspector drawers; 24-px gutters</div></div>
+          <div><div class="tiny faint" style="text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Type</div><div class="small">Inter 14 px · JetBrains Mono for numerics/logs · 11 px uppercase labels</div></div>
+          <div><div class="tiny faint" style="text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Color discipline</div><div class="small">Semantic color only in state pills &amp; chart series; one accent for interactive elements</div></div>
+          <div><div class="tiny faint" style="text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Motion</div><div class="small">None decorative; 120–200 ms for drawers/toggles; reduced-motion respected</div></div>
+          <div><div class="tiny faint" style="text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Dark theme</div><div class="small">Equal token map, Settings toggle — quiet graphite, no glow</div></div>
+          <div><div class="tiny faint" style="text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Implementation</div><div class="small">Tailwind v4 tokens + Radix/shadcn primitives + uPlot charts</div></div>
+        </div>
+      </div>
+
+      <div class="note">◈ Mockup set: option-a/b/c.html (Overview in each skin) · overview/serve/models/analysis/node.html will be reskinned with the chosen option.</div>
+    </div>
+  </div>
+</div>
+<script src="assets/pulse.js"></script>
+<script>renderNav("design-system");</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "@cc/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p .",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "dev": "tsx watch src/index.ts"
+  },
+  "dependencies": {
+    "@cc/shared": "*",
+    "fastify": "^5.2.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "@types/node": "^22.10.0"
+  }
+}

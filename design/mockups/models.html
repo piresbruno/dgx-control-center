@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Models · ControlCenter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="assets/pulse.css"/>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar"></aside>
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb">AI Plane <span>·</span> <b>Models</b> <span>·</span> qnap-nas store</div>
+      <div class="spacer"></div>
+      <div class="palette-hint">Search, jump, command… <kbd>⌘K</kbd></div>
+      <div class="row" style="gap:6px"><span class="live-dot"></span><span class="tiny dim num" data-clock></span></div>
+    </div>
+
+    <div class="page">
+      <div class="page-head">
+        <div class="page-title">
+          <h1>Model catalog</h1>
+          <div class="sub">modelctl store on <span class="mono">qnap-nas:/mnt/nas/llm-models</span> · 62 models · 5.8 TB · catalog ok</div>
+        </div>
+        <div class="page-actions">
+          <button class="btn">modelctl doctor</button>
+          <button class="btn primary">Download from HF</button>
+        </div>
+      </div>
+
+      <!-- presence matrix -->
+      <div class="panel">
+        <div class="panel-head"><h3>Node presence matrix</h3><span class="sub">NAS store → nodes · click a cell for Sync / Push (CX7) / Remove</span>
+          <div class="right"><span class="lgd"><i style="background:var(--series-1)"></i>on node</span><span class="lgd"><i style="background:var(--series-3)"></i>store only</span><span class="lgd"><i style="background:var(--overlay)"></i>absent</span></div></div>
+        <div class="panel-body flush">
+          <table class="dt">
+            <thead><tr><th>Model</th><th>Runtime</th><th class="num">Size</th><th style="text-align:center">NAS</th><th style="text-align:center">dgx1</th><th style="text-align:center">dgx2</th><th>Placement action</th></tr></thead>
+            <tbody>
+              <tr>
+                <td class="mono strong" style="font-size:12px">GLM-5.3-Flash-EXL3</td><td class="tiny dim">exl3 · vllm</td><td class="num">68.4 GB</td>
+                <td style="text-align:center"><span class="mx-cell mx-nas">store</span></td>
+                <td style="text-align:center"><span class="mx-cell mx-on">running</span></td>
+                <td style="text-align:center"><span class="mx-cell mx-on">present</span></td>
+                <td class="tiny faint">TP=2 pair · healthy</td>
+              </tr>
+              <tr>
+                <td class="mono strong" style="font-size:12px">Qwen3.6-27B-NVFP4</td><td class="tiny dim">vllm</td><td class="num">27.1 GB</td>
+                <td style="text-align:center"><span class="mx-cell mx-nas">store</span></td>
+                <td style="text-align:center"><span class="mx-cell mx-off">sync</span></td>
+                <td style="text-align:center"><span class="mx-cell mx-on">running</span></td>
+                <td><button class="btn sm">Sync → dgx1</button> <span class="tiny faint">fits, 24.8 GB free</span></td>
+              </tr>
+              <tr>
+                <td class="mono strong" style="font-size:12px">Laguna-S-2.1-GGUF-UD-IQ4_XS</td><td class="tiny dim">llama.cpp</td><td class="num">19.0 GB</td>
+                <td style="text-align:center"><span class="mx-cell mx-nas">store</span></td>
+                <td style="text-align:center"><span class="mx-cell mx-on">present</span></td>
+                <td style="text-align:center"><span class="mx-cell mx-off">sync</span></td>
+                <td><button class="btn sm">Sync → dgx2</button> <span class="tiny faint">fits, 57 GB free</span></td>
+              </tr>
+              <tr>
+                <td class="mono strong" style="font-size:12px">DeepSeek-V4-Flash-180B-0xSero</td><td class="tiny dim">vllm · REAP</td><td class="num">93.2 GB</td>
+                <td style="text-align:center"><span class="mx-cell mx-nas">store</span></td>
+                <td style="text-align:center"><span class="mx-cell mx-off">—</span></td>
+                <td style="text-align:center"><span class="mx-cell mx-off">—</span></td>
+                <td><span class="callout warn" style="padding:4px 8px;display:inline-flex">needs TP=2 · 46.6 GB per node after KV</span></td>
+              </tr>
+              <tr>
+                <td class="mono strong" style="font-size:12px">Mistral-Small-4-119B-2603-NVFP4</td><td class="tiny dim">vllm</td><td class="num">61.8 GB</td>
+                <td style="text-align:center"><span class="mx-cell mx-off">download</span></td>
+                <td style="text-align:center"><span class="mx-cell mx-off">—</span></td>
+                <td style="text-align:center"><span class="mx-cell mx-off">—</span></td>
+                <td class="tiny faint">queued below ↓</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid grid-main-side" style="margin-top:14px">
+        <!-- NAS catalog -->
+        <div class="panel" style="margin:0">
+          <div class="panel-head"><h3>NAS catalog</h3><span class="sub">62 models · master detail</span>
+            <div class="right"><input class="input" style="width:180px" placeholder="Filter models…"/></div></div>
+          <div class="panel-body flush" style="max-height:360px;overflow:auto">
+            <table class="dt">
+              <thead><tr><th>Name</th><th>Runtime</th><th>Revision</th><th class="num">Bytes</th><th></th></tr></thead>
+              <tbody>
+                <tr><td class="mono strong" style="font-size:12px">GLM-5.3-Flash-EXL3</td><td class="tiny">exl3</td><td class="tiny mono dim">main · 7c22de0</td><td class="num">73.4e9</td><td><button class="btn ghost sm">Detail</button></td></tr>
+                <tr><td class="mono strong" style="font-size:12px">Qwen3.6-27B-NVFP4</td><td class="tiny">vllm</td><td class="tiny mono dim">main</td><td class="num">29.1e9</td><td><button class="btn ghost sm">Detail</button></td></tr>
+                <tr><td class="mono strong" style="font-size:12px">Qwen3.5-122B-A10B-NVFP4</td><td class="tiny">vllm</td><td class="tiny mono dim">main</td><td class="num">118e9</td><td><button class="btn ghost sm">Detail</button></td></tr>
+                <tr><td class="mono strong" style="font-size:12px">DeepSeek-V4-Flash-162B-GGUF-Q2-REAP-ds4</td><td class="tiny">gguf</td><td class="tiny mono dim">main</td><td class="num">61e9</td><td><button class="btn ghost sm">Detail</button></td></tr>
+                <tr><td class="mono strong" style="font-size:12px">gemma-4-26b-a4b-it-iq4-xs</td><td class="tiny">llama.cpp</td><td class="tiny mono dim">main</td><td class="num">15.2e9</td><td><button class="btn ghost sm">Detail</button></td></tr>
+                <tr><td class="mono strong" style="font-size:12px">ornith-1.0-35b-ud-iq4-xs</td><td class="tiny">llama.cpp</td><td class="tiny mono dim">main</td><td class="num">19.8e9</td><td><button class="btn ghost sm">Detail</button></td></tr>
+                <tr><td class="mono strong" style="font-size:12px">diffusiongemma-26B-A4B-it-NVFP4</td><td class="tiny">vllm</td><td class="tiny mono dim">main</td><td class="num">27.4e9</td><td><button class="btn ghost sm">Detail</button></td></tr>
+                <tr><td class="mono strong" style="font-size:12px">Laguna-S-2.1-DFlash-NVFP4</td><td class="tiny">vllm</td><td class="tiny mono dim">main</td><td class="num">21e9</td><td><button class="btn ghost sm">Detail</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- downloads + modelctl -->
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="panel" style="margin:0">
+            <div class="panel-head"><h3>Download queue</h3><span class="sub">modelctl queue · 2 jobs</span></div>
+            <div class="panel-body" style="display:flex;flex-direction:column;gap:12px">
+              <div>
+                <div class="row between" style="margin-bottom:5px"><span class="mono tiny strong">Mistral-Small-4-119B-2603-NVFP4</span><span class="tiny num dim">61.8 %</span></div>
+                <div class="meter"><i style="width:62%;background:var(--series-1)"></i></div>
+                <div class="tiny faint" style="margin-top:4px">→ NAS · 41.9 / 67.5 GB · 212 MB/s · ETA 2 m</div>
+              </div>
+              <div>
+                <div class="row between" style="margin-bottom:5px"><span class="mono tiny strong">Qwen3.5-122B-A10B-MTP-GGUF-q8-0</span><span class="tiny num dim">queued</span></div>
+                <div class="meter"><i style="width:2%;background:var(--overlay)"></i></div>
+                <div class="tiny faint" style="margin-top:4px">waiting for slot 2 · --jobs 2</div>
+              </div>
+              <button class="btn sm danger" style="align-self:flex-start">Cancel queued</button>
+            </div>
+          </div>
+          <div class="panel" style="margin:0">
+            <div class="panel-head"><h3>modelctl</h3></div>
+            <div class="panel-body">
+              <div class="kv">
+                <dt>qnap-nas</dt><dd><span class="pill ok">v0.18.1</span> latest</dd>
+                <dt>dgx1</dt><dd><span class="pill ok">v0.18.1</span></dd>
+                <dt>dgx2</dt><dd><span class="pill warn">v0.16.2</span> <button class="btn ghost sm" style="margin-left:6px">Update</button></dd>
+                <dt>doctor</dt><dd><span class="pill ok">0 errors</span> <span class="pill warn">1 warning</span></dd>
+              </div>
+              <div class="divider"></div>
+              <button class="btn sm" style="width:100%;justify-content:center">Run doctor + repair preview</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="note">◈ Mockup — every write path (download / sync / push / delete / update) runs as a single-flight remote job with live log tail and armed destructive confirmation. Store is only ever touched through modelctl.</div>
+    </div>
+  </div>
+</div>
+<script src="assets/pulse.js"></script>
+<script>renderNav("models");</script>
+</body>
+</html>

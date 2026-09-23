@@ -1,0 +1,22 @@
+{
+  "name": "@cc/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/main.js",
+  "types": "./dist/main.d.ts",
+  "scripts": {
+    "build": "tsc -p .",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "dev": "tsx watch src/main.ts"
+  },
+  "dependencies": {
+    "@cc/shared": "*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.0",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0"
+  }
+}

@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>dgx1 · ControlCenter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="assets/pulse.css"/>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar"></aside>
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb">Nodes <span>·</span> <b>dgx1</b> <span class="faint">· head · GB10</span></div>
+      <div class="spacer"></div>
+      <div class="palette-hint">Search, jump, command… <kbd>⌘K</kbd></div>
+      <div class="row" style="gap:6px"><span class="live-dot"></span><span class="tiny dim num" data-clock></span></div>
+    </div>
+
+    <div class="page">
+      <div class="page-head">
+        <div class="page-title">
+          <h1>dgx1 <span class="pill ok" style="vertical-align:3px;margin-left:8px"><span class="dot"></span>Agent v3</span></h1>
+          <div class="sub">DGX Spark · GB10 superchip · 20-core Arm · 126 GB LPDDR5X · 10.0.30.11 · CX7 10.0.30.2 · uptime 41 d</div>
+        </div>
+        <div class="page-actions">
+          <button class="btn">Connectivity test</button>
+          <button class="btn">Reinstall agent</button>
+          <button class="btn ghost">Wake-on-LAN</button>
+          <button class="btn danger" id="sd">Shutdown</button>
+        </div>
+      </div>
+
+      <div class="grid cols-4">
+        <div class="panel kpi"><div class="label">GPU</div><div class="value num">78<small>%</small></div><div class="delta dim">64 °C · 2 200 MHz locked</div><div class="spark" id="g1"></div></div>
+        <div class="panel kpi"><div class="label">Unified memory</div><div class="value num">87.2<small>GB</small></div><div class="delta dim">of 126 GB · GPU 71 / sys 16.2</div><div class="spark" id="g2"></div></div>
+        <div class="panel kpi"><div class="label">CPU</div><div class="value num">41<small>%</small></div><div class="delta dim">20 cores · max_perf 2.0 GHz</div><div class="spark" id="g3"></div></div>
+        <div class="panel kpi"><div class="label">Power</div><div class="value num">202<small>W</small></div><div class="delta dim">Cool profile · 18.9 kWh today</div><div class="spark" id="g4"></div></div>
+      </div>
+
+      <div class="grid cols-2" style="margin-top:14px">
+        <div class="panel" style="margin:0">
+          <div class="panel-head"><h3>GPU</h3><span class="sub">nvidia-smi + dmon · 1 s</span><div class="right"><span class="pill ok"><span class="dot"></span>persistence on</span></div></div>
+          <div class="panel-body">
+            <div id="gpuChart" style="height:130px;margin-bottom:12px"></div>
+            <div class="row" style="gap:16px;margin-bottom:12px">
+              <span class="lgd"><i style="background:var(--series-1)"></i>util %</span>
+              <span class="lgd"><i style="background:var(--series-2)"></i>mem BW GB/s</span>
+              <span class="lgd"><i style="background:var(--series-5)"></i>temp °C</span>
+            </div>
+            <table class="dt">
+              <thead><tr><th>Process</th><th class="num">Mem</th><th class="num">CPU %</th></tr></thead>
+              <tbody>
+                <tr><td class="mono tiny">vllm · glm-5.3-flash-exl3</td><td class="num">68.1 GB</td><td class="num">212</td></tr>
+                <tr><td class="mono tiny">llama-server · embed-sm</td><td class="num">2.9 GB</td><td class="num">14</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel" style="margin:0">
+          <div class="panel-head"><h3>CPU · memory · storage</h3><span class="sub">per-core cap visible in policy chip</span></div>
+          <div class="panel-body">
+            <div id="cpuChart" style="height:104px;margin-bottom:10px"></div>
+            <div class="row" style="gap:16px;margin-bottom:14px">
+              <span class="lgd"><i style="background:var(--series-3)"></i>cpu %</span>
+              <span class="lgd"><i style="background:var(--series-2)"></i>UMA GB/s (dmon)</span>
+            </div>
+            <div class="gauge-row" style="margin-bottom:8px"><span>UMA</span><div class="meter"><i style="width:69%;background:var(--series-2)"></i></div><span class="v">87.2 / 126 GB</span></div>
+            <div class="gauge-row" style="margin-bottom:8px"><span>NVMe</span><div class="meter"><i style="width:52%;background:var(--series-4)"></i></div><span class="v">1.0 / 2.0 TB</span></div>
+            <div class="gauge-row"><span>Net</span><div class="meter"><i style="width:35%;background:var(--series-3)"></i></div><span class="v">2.1 Gb/s</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- power & clocks -->
+      <div class="panel" style="margin-top:14px">
+        <div class="panel-head">
+          <h3>Power &amp; clocks</h3><span class="sub">DGX only · sudo-gated helper <span class="mono">/usr/local/bin/spark-clock</span></span>
+          <div class="right">
+            <span class="chip mono">applied 22:04 · reconcile on boot ✓</span>
+            <button class="btn sm">Helper install</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div style="margin-bottom:14px">
+            <div class="tiny faint" style="text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">Profile</div>
+            <div class="profile-pick" id="profiles">
+              <div class="pf"><b>Full</b><span>gpu unlock · cpu max</span></div>
+              <div class="pf on"><b>Cool</b><span>gpu 2200 · cpu 2.0 GHz</span></div>
+              <div class="pf"><b>Whisper</b><span>gpu 1500 · cpu 1.5 GHz</span></div>
+              <div class="pf"><b>Custom</b><span>edit sliders</span></div>
+            </div>
+          </div>
+          <div class="grid cols-2" style="gap:22px">
+            <div>
+              <div class="clock-slider">
+                <div class="lab">GPU lock</div>
+                <input class="slider" type="range" min="0" max="2670" step="10" value="2200"/>
+                <div class="val"><span id="gpuMhz">2200</span> MHz · <span class="faint">0,2200</span></div>
+              </div>
+              <div class="clock-slider">
+                <div class="lab">CPU max_perf</div>
+                <input class="slider" type="range" min="800" max="4320" step="20" value="2000"/>
+                <div class="val"><span id="cpuGhz">2.00</span> GHz · <span class="faint">cpu0..19</span></div>
+              </div>
+              <div class="callout info" style="margin-top:10px"><span>ⓘ</span>
+                <div>Applied via privileged helper:<br/>
+                <span class="mono">echo 2000000 | sudo tee /sys/devices/system/cpu/cpu{0..19}/cpufreq/max_perf</span><br/>
+                <span class="mono">sudo nvidia-smi -lgc 0,2200</span> · revert <span class="mono">sudo nvidia-smi -rgc</span></div>
+              </div>
+              <div class="row" style="margin-top:12px">
+                <button class="btn primary">Apply profile</button>
+                <button class="btn">Revert to defaults</button>
+                <span class="tiny faint" style="margin-left:auto">GB10 has no user power-limit or fan control — clock locking is the supported lever.</span>
+              </div>
+            </div>
+            <div>
+              <div class="kv" style="margin-bottom:12px">
+                <dt>Thermal guard</dt><dd><span class="toggle on"><i></i></span> &gt; 72 °C for 60 s → auto Cool <span class="tiny faint">(fired 1× yesterday)</span></dd>
+                <dt>Schedule</dt><dd class="tiny">Whisper 23:00–07:00 · Cool otherwise <button class="btn ghost sm" style="margin-left:6px">Edit</button></dd>
+                <dt>Re-apply</dt><dd class="tiny">on node online ✓ · on profile change ✓</dd>
+              </div>
+              <div class="divider" style="margin:10px 0"></div>
+              <div class="row between" style="margin-bottom:6px">
+                <span class="tiny faint" style="text-transform:uppercase;letter-spacing:.07em">Power consumption</span>
+                <div class="seg"><button>hourly</button><button class="on">daily</button><button>monthly</button></div>
+              </div>
+              <div id="powerChart" style="height:96px"></div>
+              <div class="row between tiny" style="margin-top:8px">
+                <span class="dim num">18.9 kWh today</span><span class="dim num">512 kWh Sept</span><span class="dim num">est. €97.28 @ €0.19/kWh</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- serving on this node -->
+      <div class="panel" style="margin-top:14px">
+        <div class="panel-head"><h3>Serving on dgx1</h3><div class="right"><button class="btn ghost sm">Serve page →</button></div></div>
+        <div class="panel-body flush">
+          <table class="dt">
+            <thead><tr><th>Deployment</th><th>Port</th><th class="num">tok/s</th><th>State</th><th>Endpoint</th></tr></thead>
+            <tbody>
+              <tr><td class="mono tiny strong">glm-5.3-flash-exl3 <span class="faint">TP=2 head</span></td><td class="num">8888</td><td class="num">642</td><td><span class="pill ok"><span class="dot"></span>healthy</span></td><td class="ep prox">/v1/glm-5.3-flash</td></tr>
+              <tr><td class="mono tiny strong">embed-sm <span class="faint">router-managed</span></td><td class="num">8902</td><td class="num">1 120</td><td><span class="pill accent">on-demand</span></td><td class="ep prox">/v1/embed-sm</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="note">◈ Mockup — GPU/CPU caps resolve against <span class="mono">--query-supported-clocks</span> and cpufreq hw limits; non-Spark nodes hide this panel entirely.</div>
+    </div>
+  </div>
+</div>
+<script src="assets/pulse.js"></script>
+<script>
+  renderNav("node");
+  sparkline(document.getElementById("g1"), series(40, { base: 78, amp: 16, seed: 61 }), { color: "var(--series-1)" });
+  sparkline(document.getElementById("g2"), series(40, { base: 87, amp: 2, seed: 62 }), { color: "var(--series-2)" });
+  sparkline(document.getElementById("g3"), series(40, { base: 41, amp: 14, seed: 63 }), { color: "var(--series-3)" });
+  sparkline(document.getElementById("g4"), series(40, { base: 202, amp: 38, seed: 64 }), { color: "var(--series-5)" });
+  areaChart(document.getElementById("gpuChart"), [
+    { data: series(60, { base: 78, amp: 18, seed: 71 }), color: "var(--series-1)" },
+    { data: series(60, { base: 210, amp: 60, seed: 72 }), color: "var(--series-2)", area: false },
+    { data: series(60, { base: 62, amp: 4, seed: 73 }), color: "var(--series-5)", area: false },
+  ], { h: 130, yFmt: (v) => Math.round(v) });
+  areaChart(document.getElementById("cpuChart"), [
+    { data: series(60, { base: 41, amp: 16, seed: 81 }), color: "var(--series-3)" },
+    { data: series(60, { base: 190, amp: 70, seed: 82 }), color: "var(--series-2)", area: false, dash: true },
+  ], { h: 104, yFmt: (v) => Math.round(v) });
+  areaChart(document.getElementById("powerChart"), [
+    { data: series(24, { base: 400, amp: 160, seed: 91 }), color: "var(--series-5)" },
+  ], { h: 96, yFmt: (v) => Math.round(v) + "W" });
+  const gm = document.getElementById("gpuMhz"), cg = document.getElementById("cpuGhz");
+  document.querySelectorAll('.clock-slider input')[0].addEventListener("input", (e) => gm.textContent = e.target.value);
+  document.querySelectorAll('.clock-slider input')[1].addEventListener("input", (e) => cg.textContent = (e.target.value / 1000).toFixed(2));
+  document.querySelectorAll("#profiles .pf").forEach((p) => p.addEventListener("click", () => {
+    document.querySelectorAll("#profiles .pf").forEach((q) => q.classList.remove("on"));
+    p.classList.add("on");
+  }));
+  const sd = document.getElementById("sd");
+  let t;
+  sd.addEventListener("click", () => {
+    if (sd.classList.contains("armed")) { sd.classList.remove("armed"); sd.textContent = "Shutdown"; clearTimeout(t); return; }
+    sd.classList.add("armed"); sd.textContent = "Confirm shutdown";
+    t = setTimeout(() => { sd.classList.remove("armed"); sd.textContent = "Shutdown"; }, 3000);
+  });
+</script>
+</body>
+</html>

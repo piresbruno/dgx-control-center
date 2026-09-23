@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Analysis · ControlCenter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="assets/pulse.css"/>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar"></aside>
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb">AI Plane <span>·</span> <b>Analysis</b> <span>·</span> gateway telemetry</div>
+      <div class="spacer"></div>
+      <div class="palette-hint">Search, jump, command… <kbd>⌘K</kbd></div>
+      <div class="row" style="gap:6px"><span class="live-dot"></span><span class="tiny dim num" data-clock></span></div>
+    </div>
+
+    <div class="page">
+      <div class="page-head">
+        <div class="page-title">
+          <h1>Analysis — requests, clients, performance</h1>
+          <div class="sub">every request through the gateway · per-client identity · payloads with caps · 7-day raw + 90-day rollups</div>
+        </div>
+        <div class="page-actions">
+          <div class="seg"><button class="on">Requests</button><button>Clients</button><button>Models</button><button>Deployments</button></div>
+          <button class="btn sm">Export CSV</button>
+        </div>
+      </div>
+
+      <!-- KPI strip -->
+      <div class="grid cols-5">
+        <div class="panel kpi"><div class="label">Requests / min</div><div class="value num">142</div><div class="delta up">▲ 12 % · 1 h window</div><div class="spark" id="a1"></div></div>
+        <div class="panel kpi"><div class="label">TTFT p50 / p95</div><div class="value num" style="font-size:19px">118<small>/</small>214<small>ms</small></div><div class="delta dim">streaming, all models</div><div class="spark" id="a2"></div></div>
+        <div class="panel kpi"><div class="label">Decode tok/s p95</div><div class="value num">86.2</div><div class="delta dim">per request, this hour</div><div class="spark" id="a3"></div></div>
+        <div class="panel kpi"><div class="label">Tokens (24 h)</div><div class="value num">4.28<small>M</small></div><div class="delta dim">3.61M out · 672k in</div><div class="spark" id="a4"></div></div>
+        <div class="panel kpi"><div class="label">Error rate</div><div class="value num">0.42<small>%</small></div><div class="delta down">▼ 2 upstream timeouts</div><div class="spark" id="a5"></div></div>
+      </div>
+
+      <div class="grid grid-main-side" style="margin-top:14px">
+        <!-- requests table -->
+        <div class="panel" style="margin:0">
+          <div class="panel-head">
+            <h3>Requests</h3><span class="sub">live follow · newest first</span>
+            <div class="right">
+              <select class="input" style="width:150px"><option>All clients</option><option>bruno-ide</option><option>phone-assistant</option><option>ci-bench</option></select>
+              <select class="input" style="width:170px"><option>All models</option><option>glm-5.3-flash</option><option>qwen3.6-27b</option><option>embed-sm</option></select>
+              <label class="row tiny dim" style="gap:6px"><span class="toggle on"><i></i></span>live</label>
+            </div>
+          </div>
+          <div class="panel-body flush" style="max-height:420px;overflow:auto">
+            <table class="dt">
+              <thead><tr><th>Time</th><th>Client</th><th>Model</th><th>Deploy</th><th class="num">Status</th><th class="num">TTFT</th><th class="num">Dur</th><th class="num">Tokens</th><th class="num">tok/s</th><th></th></tr></thead>
+              <tbody>
+                <tr style="outline:1px solid rgba(118,185,0,.35)"><td class="num dim">07:52:18</td><td><span class="chip">bruno-ide</span></td><td class="mono tiny strong">glm-5.3-flash</td><td class="tiny dim mono">glm (dgx1+dgx2)</td><td class="num"><span class="pill ok">200</span></td><td class="num">214</td><td class="num">8 412</td><td class="num">612/3 902</td><td class="num">46.4</td><td><button class="btn ghost sm">Open</button></td></tr>
+                <tr><td class="num dim">07:52:02</td><td><span class="chip">phone-assistant</span></td><td class="mono tiny strong">qwen3.6-27b</td><td class="tiny dim mono">qwen (dgx2)</td><td class="num"><span class="pill ok">200</span></td><td class="num">121</td><td class="num">2 240</td><td class="num">38/401</td><td class="num">81.2</td><td><button class="btn ghost sm">Open</button></td></tr>
+                <tr><td class="num dim">07:51:44</td><td><span class="chip">bruno-ide</span></td><td class="mono tiny strong">embed-sm</td><td class="tiny dim mono">router-managed</td><td class="num"><span class="pill ok">200</span></td><td class="num">11</td><td class="num">38</td><td class="num">12/0</td><td class="num">—</td><td><button class="btn ghost sm">Open</button></td></tr>
+                <tr><td class="num dim">07:51:31</td><td><span class="chip">ci-bench</span></td><td class="mono tiny strong">glm-5.3-flash</td><td class="tiny dim mono">glm (dgx1+dgx2)</td><td class="num"><span class="pill ok">200</span></td><td class="num">302</td><td class="num">61 204</td><td class="num">300k/0</td><td class="num">—</td><td><button class="btn ghost sm">Open</button></td></tr>
+                <tr><td class="num dim">07:51:04</td><td><span class="chip">phone-assistant</span></td><td class="mono tiny strong">glm-5.3-flash</td><td class="tiny dim mono">glm (dgx1+dgx2)</td><td class="num"><span class="pill crit">502</span></td><td class="num">—</td><td class="num">301</td><td class="num">—</td><td class="num">—</td><td><button class="btn ghost sm">Open</button></td></tr>
+                <tr><td class="num dim">07:50:58</td><td><span class="chip">phone-assistant</span></td><td class="mono tiny strong">glm-5.3-flash</td><td class="tiny dim mono">glm (dgx1+dgx2)</td><td class="num"><span class="pill ok">200</span></td><td class="num">288</td><td class="num">5 118</td><td class="num">204/1 881</td><td class="num">72.1</td><td><button class="btn ghost sm">Open</button></td></tr>
+                <tr><td class="num dim">07:50:12</td><td><span class="chip">bruno-ide</span></td><td class="mono tiny strong">qwen3.6-27b</td><td class="tiny dim mono">qwen (dgx2)</td><td class="num"><span class="pill ok">200</span></td><td class="num">132</td><td class="num">9 904</td><td class="num">88/1 204</td><td class="num">66.8</td><td><button class="btn ghost sm">Open</button></td></tr>
+                <tr><td class="num dim">07:49:40</td><td><span class="chip">ci-bench</span></td><td class="mono tiny strong">embed-sm</td><td class="tiny dim mono">router-managed</td><td class="num"><span class="pill ok">200</span></td><td class="num">13</td><td class="num">41</td><td class="num">18/0</td><td class="num">—</td><td><button class="btn ghost sm">Open</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- clients panel -->
+        <div class="panel" style="margin:0">
+          <div class="panel-head"><h3>By client · 24 h</h3><div class="right"><button class="btn ghost sm">Keys →</button></div></div>
+          <div class="panel-body">
+            <div id="clientBars" style="margin-bottom:14px"></div>
+            <div class="divider"></div>
+            <div class="kv" style="grid-template-columns:96px 1fr">
+              <dt>bruno-ide</dt><dd><span class="pill ok">key ok</span> <span class="tiny dim num">2 104 req</span></dd>
+              <dt>phone-assistant</dt><dd><span class="pill ok">key ok</span> <span class="tiny dim num">982 req</span></dd>
+              <dt>ci-bench</dt><dd><span class="pill info">source-tag</span> <span class="tiny dim num">311 req</span></dd>
+              <dt>10.0.30.42</dt><dd><span class="pill warn">ip fallback</span> <span class="tiny dim num">14 req</span></dd>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- inspector drawer -->
+      <div class="scrim"></div>
+      <aside class="drawer">
+        <div class="drawer-head">
+          <span class="pill ok"><span class="dot"></span>200</span>
+          <b class="mono" style="font-size:12.5px">POST /v1/chat/completions</b>
+          <div class="right"><button class="btn ghost sm">Copy as curl</button><button class="btn ghost sm">✕</button></div>
+        </div>
+        <div class="drawer-body">
+          <div class="tabs" style="margin-bottom:14px"><button class="on">Timing</button><button>Request</button><button>Response</button><button>Client</button></div>
+          <dl class="kv" style="margin-bottom:16px">
+            <dt>Request id</dt><dd>req_01J9…8FQ</dd>
+            <dt>Time</dt><dd>2026-09-23 07:52:18.412</dd>
+            <dt>Model</dt><dd>glm-5.3-flash <span class="faint">(alias)</span></dd>
+            <dt>Deployment</dt><dd>glm (dgx1+dgx2 · TP=2)</dd>
+            <dt>Client</dt><dd>bruno-ide · key cc-sk-9f2e…</dd>
+            <dt>Stream</dt><dd>true · SSE</dd>
+            <dt>Finish</dt><dd>stop</dd>
+          </dl>
+          <div class="grid cols-2" style="gap:10px;margin-bottom:16px">
+            <div class="panel kpi" style="box-shadow:none"><div class="label">TTFT</div><div class="value num" style="font-size:18px">214<small>ms</small></div></div>
+            <div class="panel kpi" style="box-shadow:none"><div class="label">E2E</div><div class="value num" style="font-size:18px">8.41<small>s</small></div></div>
+            <div class="panel kpi" style="box-shadow:none"><div class="label">Decode avg</div><div class="value num" style="font-size:18px">46.4<small>tok/s</small></div></div>
+            <div class="panel kpi" style="box-shadow:none"><div class="label">ITL p95</div><div class="value num" style="font-size:18px">24.1<small>ms</small></div></div>
+          </div>
+          <div class="tiny faint" style="text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Token timeline (decode tok/s)</div>
+          <div id="reqChart" style="height:96px;margin-bottom:16px"></div>
+          <div class="tiny faint" style="text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Usage</div>
+          <dl class="kv" style="margin-bottom:16px">
+            <dt>Prompt</dt><dd>612 tokens</dd>
+            <dt>Completion</dt><dd>3 902 tokens</dd>
+            <dt>Est. energy</dt><dd>0.9 Wh <span class="faint">(node watts @ 202 W avg)</span></dd>
+          </dl>
+          <div class="tiny faint" style="text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Response (last 2 KB of 31 KB)</div>
+          <div class="console" style="max-height:130px">{
+  "id": "chatcmpl-9f41", "model": "glm-5.3-flash",
+  "choices": [{ "message": { "role": "assistant",
+    "content": "The NCCL ring over CX7 stabilizes after…" },
+    "finish_reason": "stop" }],
+  "usage": { "prompt_tokens": 612, "completion_tokens": 3902 }
+}</div>
+          <div class="callout info" style="margin-top:14px"><span>ⓘ</span><div>Payload capture on · caps 32 KB req / 64 KB res · redact-list applied to <span class="mono">api_key</span> fields.</div></div>
+        </div>
+      </aside>
+
+      <div class="note">◈ Mockup — rows stream in live over WS; the Inspector is a drawer (not a modal) so the table keeps its scroll position. Everything here aggregates from the gateway's request store.</div>
+    </div>
+  </div>
+</div>
+<script src="assets/pulse.js"></script>
+<script>
+  renderNav("analysis");
+  sparkline(document.getElementById("a1"), series(40, { base: 140, amp: 40, seed: 41 }), { color: "var(--series-2)" });
+  sparkline(document.getElementById("a2"), series(40, { base: 160, amp: 50, seed: 42 }), { color: "var(--series-3)" });
+  sparkline(document.getElementById("a3"), series(40, { base: 84, amp: 18, seed: 43 }), { color: "var(--series-1)" });
+  sparkline(document.getElementById("a4"), series(40, { base: 4.2, amp: 1.2, seed: 44 }), { color: "var(--series-4)" });
+  sparkline(document.getElementById("a5"), series(40, { base: 0.4, amp: 0.25, seed: 45 }), { color: "var(--crit)" });
+  hbars(document.getElementById("clientBars"), [
+    { label: "bruno-ide", value: 2104, color: "var(--series-1)" },
+    { label: "phone-assistant", value: 982, color: "var(--series-2)" },
+    { label: "ci-bench", value: 311, color: "var(--series-3)" },
+    { label: "10.0.30.42", value: 14, color: "var(--series-8)" },
+  ], { unit: "" });
+  areaChart(document.getElementById("reqChart"), [
+    { data: series(50, { base: 46, amp: 12, seed: 51 }), color: "var(--series-1)" },
+  ], { h: 96, yFmt: (v) => Math.round(v) + " t/s" });
+</script>
+</body>
+</html>

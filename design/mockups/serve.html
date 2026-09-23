@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Serve · ControlCenter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="assets/pulse.css"/>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar"></aside>
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb">AI Plane <span>·</span> <b>Serve</b></div>
+      <div class="spacer"></div>
+      <div class="palette-hint">Search, jump, command… <kbd>⌘K</kbd></div>
+      <div class="row" style="gap:6px"><span class="live-dot"></span><span class="tiny dim num" data-clock></span></div>
+    </div>
+
+    <div class="page">
+      <div class="page-head">
+        <div class="page-title">
+          <h1>Serve — recipes &amp; deployments</h1>
+          <div class="sub">Your recipe folders, supervised cluster-wide · multiple models at once · placement-checked starts</div>
+        </div>
+        <div class="page-actions">
+          <button class="btn">Register recipe</button>
+          <button class="btn primary">New deployment</button>
+        </div>
+      </div>
+
+      <!-- budget estimator -->
+      <div class="callout accent" style="margin-bottom:14px">
+        <span>◈</span>
+        <div><b>Capacity now:</b> dgx1 87.2/126 GB UMA · dgx2 69/126 GB — starting <span class="mono">Laguna-S-2.1</span> (needs 19 GB) fits on dgx2 with 38 GB headroom. Transfers run over CX7.</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Deployments</h3><span class="sub">recipe runs + script runs + router-managed</span>
+          <div class="right">
+            <div class="seg"><button class="on">All</button><button>Running</button><button>Stopped</button><button>Issues</button></div>
+          </div>
+        </div>
+        <div class="panel-body flush">
+          <table class="dt">
+            <thead><tr>
+              <th style="width:26px"></th><th>Recipe / run</th><th>Node</th><th>Model</th><th>Port</th><th>Endpoints</th><th class="num">tok/s</th><th class="num">KV</th><th>State</th><th style="width:190px"></th>
+            </tr></thead>
+            <tbody>
+              <tr>
+                <td><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2"><path d="M6 9l6 6 6-6" transform="rotate(-90 12 12)"/></svg></td>
+                <td><div class="strong mono" style="font-size:12px">glm-5.3-flash-exl3</div><div class="tiny faint mono">~/recipes/GLM-5.3-Flash-EXL3-2x-DGX-Sparks · TP=2 · <span class="warn">drift</span></div></td>
+                <td>dgx1 <span class="faint tiny">+ dgx2</span></td>
+                <td class="mono tiny">GLM-5.3-Flash-EXL3</td>
+                <td class="num">8888</td>
+                <td><span class="ep">10.0.30.11:8888</span> <span class="ep prox">/v1/glm-5.3-flash</span></td>
+                <td class="num">642</td><td class="num">81 %</td>
+                <td><span class="pill ok"><span class="dot"></span>healthy</span></td>
+                <td><div class="row" style="justify-content:flex-end"><button class="btn sm">Logs</button><button class="btn sm">Restart</button><button class="btn sm danger">Stop</button></div></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><div class="strong mono" style="font-size:12px">qwen3.8-27b-dflash2</div><div class="tiny faint mono">~/recipes/Qwen3.8-27B-NVFP4-DFlash2 · single-node</div></td>
+                <td>dgx2</td>
+                <td class="mono tiny">Qwen3.6-27B-NVFP4</td>
+                <td class="num">8891</td>
+                <td><span class="ep">10.0.30.12:8891</span> <span class="ep prox">/v1/qwen3.6-27b</span></td>
+                <td class="num">198</td><td class="num">44 %</td>
+                <td><span class="pill ok"><span class="dot"></span>healthy</span></td>
+                <td><div class="row" style="justify-content:flex-end"><button class="btn sm">Logs</button><button class="btn sm">Restart</button><button class="btn sm danger">Stop</button></div></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><div class="strong mono" style="font-size:12px">embed-sm</div><div class="tiny faint mono">router-managed · llama.cpp · idle-stop 10 m</div></td>
+                <td>dgx1</td>
+                <td class="mono tiny">Laguna-S-2.1-GGUF-IQ4_XS</td>
+                <td class="num">8902</td>
+                <td><span class="ep">127.0.0.1:8902</span> <span class="ep prox">/v1/embed-sm</span></td>
+                <td class="num">1 120</td><td class="num">9 %</td>
+                <td><span class="pill accent">on-demand</span></td>
+                <td><div class="row" style="justify-content:flex-end"><button class="btn sm">Logs</button><button class="btn sm ghost">Evict</button></div></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><div class="strong mono" style="font-size:12px">bench-prefill <span class="pill" style="margin-left:6px">script</span></div><div class="tiny faint mono">library script · decode bench on glm-5.3</div></td>
+                <td>dgx1</td>
+                <td class="mono tiny">—</td>
+                <td class="num">—</td>
+                <td><span class="ep">internal</span></td>
+                <td class="num">—</td><td class="num">—</td>
+                <td><span class="pill info"><span class="dot"></span>running</span></td>
+                <td><div class="row" style="justify-content:flex-end"><button class="btn sm">Log</button><button class="btn sm danger">Cancel</button></div></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td><div class="strong mono" style="font-size:12px">deepseek-v4-dspark</div><div class="tiny faint mono">~/recipes/DeepSeek-v4-Flash-DSpark-2x-DGX-Spark · NNODES=2</div></td>
+                <td>dgx1 + dgx2</td>
+                <td class="mono tiny">DeepSeek-V4-Flash-DSpark</td>
+                <td class="num">—</td>
+                <td><span class="ep">—</span></td>
+                <td class="num">—</td><td class="num">—</td>
+                <td><span class="pill"><span class="dot"></span>stopped</span></td>
+                <td><div class="row" style="justify-content:flex-end"><button class="btn sm primary">Start</button><button class="btn sm">Logs</button></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- expandable console (visual state of expanded row 1) -->
+        <div style="border-top:1px solid var(--hairline);padding:12px 16px;background:color-mix(in srgb, var(--bg) 55%, var(--surface))">
+          <div class="row between" style="margin-bottom:8px">
+            <span class="tiny dim mono">glm-5.3-flash-exl3 · engine log (dispatch <b>logs</b>) · following</span>
+            <div class="row"><span class="pill info"><span class="dot"></span>driver job ok</span><button class="btn ghost sm">Collapse</button></div>
+          </div>
+          <div class="console" style="max-height:132px">07:41:02 <span class="okl">[glm53-exl3]</span> worker dgx2 ready · NCCL ring closed over CX7 (rocep1s0f1 ⇄ rocep1s0f0)
+07:41:02 <span class="okl">vLLM 0.11.2</span> · EXL3 fused MoE on · TP=2 · KV 15032385536 B
+07:44:19 <span class="warnl">firmware power state changed</span> — sustained load (expected)
+07:46:51 <span class="okl">serving</span> glm-5.3-flash on 0.0.0.0:8888 · 1 slot · APC SWA retention on</div>
+        </div>
+      </div>
+
+      <div class="grid grid-main-side" style="margin-top:14px">
+        <!-- recipes library -->
+        <div class="panel" style="margin:0">
+          <div class="panel-head"><h3>Recipe library</h3><span class="sub">user-owned folders · dashboard never edits them</span><div class="right"><button class="btn sm">Re-probe all</button></div></div>
+          <div class="panel-body flush">
+            <table class="dt">
+              <thead><tr><th>Recipe</th><th>Node</th><th>Verbs</th><th>Profiles</th><th>Git</th><th></th></tr></thead>
+              <tbody>
+                <tr><td class="mono strong" style="font-size:12px">GLM-5.3-Flash-EXL3-2x-DGX-Sparks</td><td>dgx1</td><td class="tiny mono">start stop status logs</td><td><span class="chip">tp2</span> <span class="chip">tp4</span></td><td><span class="pill warn"><span class="dot"></span>dirty</span></td><td><button class="btn ghost sm">Probe</button></td></tr>
+                <tr><td class="mono strong" style="font-size:12px">Qwen3.8-27B-NVFP4-DFlash2</td><td>dgx2</td><td class="tiny mono">start stop status logs</td><td><span class="chip">default</span></td><td><span class="pill ok"><span class="dot"></span>clean</span></td><td><button class="btn ghost sm">Probe</button></td></tr>
+                <tr><td class="mono strong" style="font-size:12px">DeepSeek-v4-Flash-DSpark-2x-DGX-Spark</td><td>dgx1</td><td class="tiny mono">compose verbs</td><td><span class="chip">c12</span> <span class="chip">stage-c</span></td><td><span class="pill ok"><span class="dot"></span>clean</span></td><td><button class="btn ghost sm">Probe</button></td></tr>
+                <tr><td class="mono strong" style="font-size:12px">MiMo-V2.6-Flash-2x-DGX-Sparks</td><td>dgx1</td><td class="tiny mono">start stop</td><td><span class="chip">tp2</span></td><td><span class="pill ok"><span class="dot"></span>clean</span></td><td><button class="btn ghost sm">Probe</button></td></tr>
+                <tr><td class="mono strong" style="font-size:12px">Qwen3.8-Flash-Next-Dual-DGX-Sparks</td><td>dgx2</td><td class="tiny mono">start stop status logs</td><td><span class="chip">dual</span></td><td><span class="pill ok"><span class="dot"></span>clean</span></td><td><button class="btn ghost sm">Probe</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- router -->
+        <div class="panel" style="margin:0">
+          <div class="panel-head"><h3>Gateway router</h3><span class="pill accent">on-demand</span></div>
+          <div class="panel-body" style="display:flex;flex-direction:column;gap:12px">
+            <div class="field"><label>Served alias → target</label>
+              <div class="row" style="gap:6px">
+                <input class="input mono" value="glm-5.3-flash" readonly/>
+                <span class="faint">→</span>
+                <input class="input mono" value="deployment glm (dgx1+dgx2)" readonly/>
+              </div>
+            </div>
+            <div class="kv">
+              <dt>Endpoint</dt><dd>http://cc.home.local/v1</dd>
+              <dt>Fallback chain</dt><dd>glm → qwen3.6-27b</dd>
+              <dt>Idle timeout</dt><dd>10 min (embed-sm only)</dd>
+              <dt>Placement check</dt><dd>on start · warnings only</dd>
+            </div>
+            <div class="divider" style="margin:2px 0"></div>
+            <div class="tiny dim" style="line-height:1.55">Unknown model → <span class="mono">404</span> with live served-name list. First request to an on-demand model spins the recipe up (streamed progress in the row), idle timeout stops it.</div>
+            <button class="btn primary" style="justify-content:center">Add served model</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="note">◈ Mockup — the dashboard supervises recipe dispatch verbs (<span class="mono">start.sh start|stop|status|logs</span>) as detached driver jobs; state truth = server probe join every 5 s.</div>
+    </div>
+  </div>
+</div>
+<script src="assets/pulse.js"></script>
+<script>renderNav("serve");</script>
+</body>
+</html>
