@@ -6,17 +6,17 @@ import { watchdogIntervalMs } from "./sdNotify.js";
 describe("loadAgentConfig", () => {
   it("parses the install-job config", () => {
     const config = parseAgentConfig({
-      dashboardUrl: "http://cc.home.local:5555",
+      dashboardUrl: "http://cc.home.local:5566",
       sparkId: "dgx1",
       token: "a".repeat(64),
     });
-    expect(config).toEqual({ dashboardUrl: "http://cc.home.local:5555", sparkId: "dgx1", token: "a".repeat(64) });
+    expect(config).toEqual({ dashboardUrl: "http://cc.home.local:5566", sparkId: "dgx1", token: "a".repeat(64) });
   });
 
   it("lets args override file values and rejects incomplete configs", () => {
-    const file = { dashboardUrl: "http://cc:5555", sparkId: "dgx1", token: "a".repeat(64) };
+    const file = { dashboardUrl: "http://cc:5566", sparkId: "dgx1", token: "a".repeat(64) };
     expect(parseAgentConfig(file, { sparkId: "dgx2" }).sparkId).toBe("dgx2");
-    expect(() => parseAgentConfig({ dashboardUrl: "http://cc:5555" })).toThrow();
+    expect(() => parseAgentConfig({ dashboardUrl: "http://cc:5566" })).toThrow();
   });
 
   it("keeps the agent version in sync with shared", () => {

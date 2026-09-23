@@ -24,7 +24,7 @@ M0 — repository bootstrapped (agentic-bootstrap), workspace skeleton with heal
 
 ```bash
 npm install
-npm run dev:server   # Fastify on :5555
+npm run dev:server   # Fastify on :5566
 npm run dev:web      # Vite on :5173 (proxies /api)
 npm test             # vitest (c8 gate ≥75% from M1)
 npm run typecheck    # tsc -b + web noEmit

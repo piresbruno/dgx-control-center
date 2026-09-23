@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: server/Dockerfile
     ports:
-      - "5555:5555"
+      - "5566:5566"
     volumes:
       # ADR-0003: file-backed SQLite + JSON config survive rebuilds here
       - ./config:/app/config

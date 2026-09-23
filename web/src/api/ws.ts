@@ -88,5 +88,5 @@ function extractPrimary(domain: string, data: Record<string, unknown>, last: num
 
 function wsUrlFromLocation(): string {
   const proto = globalThis.location?.protocol === "https:" ? "wss" : "ws";
-  return `${proto}://${globalThis.location?.host ?? "localhost:5555"}/ws`;
+  return `${proto}://${globalThis.location?.host ?? "localhost:5566"}/ws`;
 }

@@ -10,7 +10,7 @@ import {
 
 const INPUT: InstallInput = {
   sparkId: "dgx1",
-  dashboardUrl: "http://cc.home.local:5555",
+  dashboardUrl: "http://cc.home.local:5566",
   token: "a".repeat(64),
   agentBundle: "console.log('agent');",
   sshUser: "piresbruno",
@@ -32,7 +32,7 @@ describe("buildInstallScript", () => {
     const b64 = Buffer.from(INPUT.agentBundle, "utf8").toString("base64");
     expect(script).toContain(`printf '%s' '${b64}' | base64 -d`);
     expect(script).toContain("\"sparkId\":\"dgx1\"");
-    expect(script).toContain('"dashboardUrl":"http://cc.home.local:5555"');
+    expect(script).toContain('"dashboardUrl":"http://cc.home.local:5566"');
     expect(script).toContain("sudo -n true");
     expect(script).toContain("systemctl --user enable --now");
     expect(script).toContain("loginctl enable-linger");

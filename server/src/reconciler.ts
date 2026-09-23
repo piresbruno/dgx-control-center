@@ -112,7 +112,8 @@ export class Reconciler {
       }
 
       const record = this.deps.directory.get(node.id);
-      const intervalMs = record?.intervals["system"] ?? desired.intervals["system"] ?? 1_000;
+      const cadences = Object.values(record?.intervals ?? desired.intervals).filter((v) => v > 0);
+      const intervalMs = cadences.length ? Math.min(...cadences) : 1_000;
       const state = computeNodeState({
         known: true,
         connected,

@@ -208,7 +208,8 @@ export class AgentDaemon {
 
   private startMetricLoop(): void {
     this.clearMetricTimer();
-    const cadence = this.config.intervals["system"] ?? 1_000;
+    const cadences = Object.values(this.config.intervals).filter((v) => v > 0);
+    const cadence = cadences.length ? Math.min(...cadences) : 1_000;
     const timers = this.opts.timers ?? globalThis;
     this.metricTimer = timers.setInterval(() => {
       void this.tickMetrics();

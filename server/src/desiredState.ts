@@ -9,7 +9,7 @@ import type { NodeRuntimeConfig } from "./agentHub.js";
  */
 export const desiredNodeStateSchema = z.object({
   clockProfileId: z.string().nullable().default(null),
-  intervals: z.record(z.string(), z.number().int().positive()).default({ system: 1000 }),
+  intervals: z.record(z.string(), z.number().int().positive()).default({ cpu: 1000, gpu: 1000, memory: 5000, network: 5000, storage: 5000 }),
   llmPorts: z.array(z.number().int().min(1).max(65535)).default([]),
   role: z.enum(["head", "worker", "standalone"]).default("standalone"),
 });
@@ -44,7 +44,7 @@ export class DesiredStateStore {
   }
 
   get(nodeId: string): DesiredNodeState {
-    return this.state.nodes[nodeId] ?? { clockProfileId: null, intervals: { system: 1000 }, llmPorts: [], role: "standalone" };
+    return this.state.nodes[nodeId] ?? { clockProfileId: null, intervals: { cpu: 1000, gpu: 1000, memory: 5000, network: 5000, storage: 5000 }, llmPorts: [], role: "standalone" };
   }
 
   /** Merge-patch: partial update keeps sibling fields (per-key deep merge). */

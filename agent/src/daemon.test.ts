@@ -18,7 +18,7 @@ interface Dashboard {
 
 async function startDashboard(
   config: { intervals: Record<string, number>; llmPorts: number[]; role: "head" | "worker" | "standalone"; clockProfileId?: string } = {
-    intervals: { system: 20 },
+    intervals: { cpu: 20 },
     llmPorts: [8888],
     role: "head",
   },
@@ -72,8 +72,8 @@ function makeDaemon(dash: Dashboard, overrides: Partial<ConstructorParameters<ty
     token: "t".repeat(64),
     role: "head",
     llmPorts: [8888],
-    intervals: { system: 20 },
-    collect: (domain, ts) => (domain === "system" ? { loadPct: 42, ts } : null),
+    intervals: { cpu: 20 },
+    collect: (domain, ts) => (domain === "cpu" ? { loadPct: 42, ts } : null),
     backoffMinMs: 10,
     backoffMaxMs: 50,
     onLog: (l) => console.error(`[daemon] ${l}`),
@@ -95,7 +95,7 @@ describe("AgentDaemon", () => {
     const seqs = dash.metrics.map((m) => m.seq);
     expect(seqs[0]).toBe(1);
     for (let i = 1; i < seqs.length; i++) expect(seqs[i]).toBe(seqs[i - 1]! + 1);
-    expect(dash.metrics[0]?.domains).toMatchObject({ system: { loadPct: 42 } });
+    expect(dash.metrics[0]?.domains).toMatchObject({ cpu: { loadPct: 42 } });
 
     daemon.stop();
     await dash.close();
@@ -152,7 +152,7 @@ describe("AgentDaemon", () => {
     const applied: Array<string | null> = [];
     const applier = { applyProfile: async (p: string | null) => void applied.push(p) };
 
-    const dash = await startDashboard({ intervals: { system: 20 }, llmPorts: [8888], role: "head", clockProfileId: "cool" });
+    const dash = await startDashboard({ intervals: { cpu: 20 }, llmPorts: [8888], role: "head", clockProfileId: "cool" });
     const daemon = makeDaemon(dash, { stateFile, clockApplier: applier });
     daemon.start();
     await vi.waitFor(() => expect(daemon.getState()).toBe("online"));

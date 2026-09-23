@@ -7,3 +7,4 @@ docs
 config
 *.md
 !README.md
+**/*.tsbuildinfo

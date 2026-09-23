@@ -74,7 +74,7 @@ export function buildApp(opts: AppOptions = {}) {
           }
         };
 
-        const dashboardUrl = `http://${request.headers.host ?? "localhost:5555"}`;
+        const dashboardUrl = `http://${request.headers.host ?? "localhost:5566"}`;
         const outcome = await runInstallAgent(
           { host: node.lanIp, user: node.sshUser },
           { sparkId: id, dashboardUrl, token: hubDeps.agentToken(), agentBundle: bundle, sshUser: node.sshUser },

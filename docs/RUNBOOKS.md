@@ -23,7 +23,7 @@ Goal: healthy agent on every DGX, `Restart=always`, watchdog enabled.
 
 ## 4. Gateway client onboarding (M4)
 
-- Create a Client → issue API key (shown once) → client sets `base_url: http://<cc>:5555/v1`.
+- Create a Client → issue API key (shown once) → client sets `base_url: http://<cc>:5566/v1`.
 - Verify with a `/v1/models` GET using the key; first request appears in Analysis tagged with the client name.
 - Payload capture per F4 defaults; redact-list applies to `api_key` fields.
 

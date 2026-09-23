@@ -26,7 +26,7 @@ if (args.includes("--version")) {
       .split(",")
       .map((p) => Number(p.trim()))
       .filter((p) => p > 0),
-    intervals: { system: 1_000 },
+    intervals: { cpu: 1_000, gpu: 1_000, memory: 5_000, network: 5_000, storage: 5_000 },
     collect: (domain, ts) => collectors[domain]?.(ts) ?? null,
     stateFile: join(process.env["HOME"] ?? "~", ".controlcenter", "agent", "state.json"),
     clockApplier: undefined, // bound to the spark-clock helper at M5
