@@ -14,6 +14,7 @@ export const serverEnvSchema = z.object({
   /** SSH identity key for node bootstrap/inventory (container-safe: no ~ expansion). */
   CC_SSH_IDENTITY: z.string().optional(),
   CC_UPSTREAM_AUTH: z.string().optional(),
+  CC_KWH_COST: z.coerce.number().min(0).default(0.3),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

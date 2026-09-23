@@ -636,3 +636,56 @@ describe("thermal guard API (M5)", () => {
     await app.close();
   });
 });
+
+describe("clock schedules API (M5)", () => {
+  it("sets, lists, and removes per-node schedules with tz validation", async () => {
+    const dir = await testDirectory();
+    const { ClockProfileStore } = await import("./power/clockStore.js");
+    const { ScheduleStore } = await import("./power/schedules.js");
+    const clockStore = new ClockProfileStore({ filePath: join(await mkdtemp(join(tmpdir(), "cc-")), "c.json") });
+    const scheduleStore = new ScheduleStore({ filePath: join(await mkdtemp(join(tmpdir(), "cc-")), "s.json") });
+    await dir.upsert({ id: "dgx1", name: "dgx-1", kind: "spark", role: "head", lanIp: "10.0.0.11", sshUser: "u" });
+    const app = buildApp({ nodeDirectory: dir, clockStore, scheduleStore });
+
+    const put = await app.inject({
+      method: "PUT",
+      url: "/api/power/schedules/dgx1",
+      payload: { tz: "Europe/Berlin", rules: [{ profileId: "eco", start: "22:00", end: "06:00" }] },
+    });
+    expect(put.statusCode).toBe(200);
+    expect(put.json()).toMatchObject({ sparkId: "dgx1", tz: "Europe/Berlin" });
+
+    const bad = await app.inject({ method: "PUT", url: "/api/power/schedules/dgx1", payload: { tz: "Nowhere/X", rules: [] } });
+    expect(bad.statusCode).toBe(400);
+    expect((await app.inject({ method: "PUT", url: "/api/power/schedules/nope", payload: { tz: "UTC", rules: [] } })).statusCode).toBe(404);
+
+    const list = await app.inject({ method: "GET", url: "/api/power/schedules" });
+    expect(list.json().schedules).toHaveLength(1);
+    expect((await app.inject({ method: "DELETE", url: "/api/power/schedules/dgx1" })).json()).toEqual({ removed: true });
+    expect((await app.inject({ method: "DELETE", url: "/api/power/schedules/dgx1" })).statusCode).toBe(404);
+    await app.close();
+  });
+});
+
+describe("energy API (M5)", () => {
+  it("serves kWh/cost summaries from injected store", async () => {
+    const dir = await testDirectory();
+    const { EnergyStore } = await import("./stores/energyStore.js");
+    const { ClockProfileStore } = await import("./power/clockStore.js");
+    const clockStore = new ClockProfileStore({ filePath: join(await mkdtemp(join(tmpdir(), "cc-")), "c.json") });
+    const { openDb } = await import("./stores/db.js");
+    const { MetricsStore } = await import("./stores/metricsStore.js");
+    const db = openDb(":memory:", 0);
+    const metrics = new MetricsStore(db, { now: () => 0 });
+    const base = Date.now() - 3_600_000; // inside the queried 24h window
+    for (let m = 0; m < 30; m++) {
+      metrics.ingest("dgx1", { ts: base + m * 60_000, domains: { gpu: { gpus: [{ watts: 100 }] } } });
+    }
+    metrics.flush();
+    const app = buildApp({ nodeDirectory: dir, clockStore, energyStore: new EnergyStore(db, { kwhCost: 0.3 }) });
+    const res = await app.inject({ method: "GET", url: "/api/power/energy?windowHours=24" });
+    expect(res.json().totalKwh).toBeGreaterThan(0);
+    expect(res.json().hourly.length).toBeGreaterThan(0);
+    await app.close();
+  });
+});

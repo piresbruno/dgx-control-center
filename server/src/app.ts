@@ -22,6 +22,7 @@ import { RequestRecorder } from "./gateway/recorder.js";
 import { OnDemandManager } from "./gateway/onDemand.js";
 import { CLOCK_PROFILES, profileById, resolveProfile } from "./power/profiles.js";
 import type { ClockProfileStore } from "./power/clockStore.js";
+import type { ScheduleStore } from "./power/schedules.js";
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { VERSION } from "@cc/shared";
 
@@ -87,6 +88,10 @@ export interface AppOptions {
   desiredStore?: import("./desiredState.js").DesiredStateStore;
   /** Thermal guard instance (owned by index.ts — its hooks dispatch jobs). */
   thermalGuard?: import("./power/thermal.js").ThermalGuard;
+  /** Clock schedules (M5). */
+  scheduleStore?: ScheduleStore;
+  /** Energy accounting (M5). */
+  energyStore?: import("./stores/energyStore.js").EnergyStore;
 }
 
 /**
@@ -656,6 +661,40 @@ export function buildApp(opts: AppOptions = {}) {
             };
           }),
       }));
+
+      // Clock schedules (per-node timezone windows).
+      const scheduleStore = opts.scheduleStore;
+      if (scheduleStore) {
+        app.decorate("scheduleStore", scheduleStore);
+        app.get("/api/power/schedules", async () => ({ schedules: scheduleStore.list() }));
+        app.put("/api/power/schedules/:sparkId", async (request, reply) => {
+          const { sparkId } = request.params as { sparkId: string };
+          if (!nodeDirectory.get(sparkId)) return reply.code(404).send({ error: "unknown node" });
+          const body = request.body as { tz?: string; rules?: Array<{ profileId: string; start: string; end: string }> } | null;
+          if (!body?.tz || !Array.isArray(body.rules)) return reply.code(400).send({ error: "tz and rules are required" });
+          const rec = scheduleStore.set(sparkId, body.tz, body.rules);
+          if (!rec) return reply.code(400).send({ error: "invalid timezone or rules" });
+          return rec;
+        });
+        app.delete("/api/power/schedules/:sparkId", async (request, reply) => {
+          const { sparkId } = request.params as { sparkId: string };
+          if (!scheduleStore.remove(sparkId)) return reply.code(404).send({ error: "no schedule for node" });
+          return { removed: true };
+        });
+      }
+
+      // Energy accounting (kWh + cost from the 1m power leaves).
+      const energyStore = opts.energyStore;
+      if (energyStore) {
+        app.get("/api/power/energy", async (request) => {
+          const q = request.query as { windowHours?: string; nodeId?: string };
+          const windowHours = Number(q.windowHours ?? "168");
+          return {
+            windowHours,
+            ...energyStore.summary(Date.now() - windowHours * 3_600_000, q.nodeId || null),
+          };
+        });
+      }
 
       app.get("/api/power/thermal", async () => ({
         nodes: nodeDirectory

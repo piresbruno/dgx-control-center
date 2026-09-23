@@ -19,8 +19,10 @@ import { ServedModelsStore } from "./gateway/servedModels.js";
 import { ClientsStore } from "./gateway/clients.js";
 import { TracesStore } from "./stores/tracesStore.js";
 import { TraceQueries } from "./stores/traceQueries.js";
+import { EnergyStore } from "./stores/energyStore.js";
 import { ClockProfileStore } from "./power/clockStore.js";
 import { ThermalGuard } from "./power/thermal.js";
+import { ScheduleStore, activeProfile } from "./power/schedules.js";
 import { profileById, resolveProfile } from "./power/profiles.js";
 import type { AgentRegistry } from "./agentHub.js";
 
@@ -93,6 +95,18 @@ const thermal = new ThermalGuard({
     if (argv) jobsManager.dispatch(sparkId, "clock-apply", argv, { timeoutMs: 30_000 });
   },
 });
+// Schedules override the manual desired profile while a window is active;
+// outside windows the manual profile (ClockProfileStore) applies again.
+setInterval(() => {
+  for (const node of directory.list()) {
+    const sched = scheduleStore.forNode(node.id);
+    const manual = clockStore.desiredFor(node.id).profile;
+    const effective = (sched ? activeProfile(sched, new Date()) : null) ?? manual;
+    if (desired.get(node.id).clockProfileId !== effective) {
+      void desired.patch(node.id, { clockProfileId: effective });
+    }
+  }
+}, 30_000);
 setInterval(() => {
   const snap = liveState.snapshot();
   thermal.tick(
@@ -113,6 +127,7 @@ const servedModelsStore = new ServedModelsStore({ filePath: "config/served-model
 const clientsStore = new ClientsStore({ filePath: "config/clients.json" });
 const deploymentStore = new DeploymentStore({ filePath: "config/serve-deployments.json" });
 const clockStore = new ClockProfileStore({ filePath: "config/clock-profiles.json" });
+const scheduleStore = new ScheduleStore({ filePath: "config/clock-schedules.json" });
 // ClockProfileStore is the UI registry; desired-state.json stays the single
 // reconciler source of truth — desires write through on set.
 const app = buildApp({
@@ -127,6 +142,8 @@ const app = buildApp({
   clockStore,
   desiredStore: desired,
   thermalGuard: thermal,
+  scheduleStore,
+  energyStore: new EnergyStore(db, { kwhCost: env.CC_KWH_COST }),
   tracesStore: new TracesStore({ db }),
   traceQueries: new TraceQueries(db),
   upstreamAuth: env.CC_UPSTREAM_AUTH ?? null,
