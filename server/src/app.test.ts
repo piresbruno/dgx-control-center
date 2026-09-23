@@ -150,3 +150,130 @@ describe("GET /api/health", () => {
     await app.close();
   });
 });
+
+describe("recipes API (M3)", () => {
+  const PROBE_OUT = [
+    "__P_FILES__",
+    "./start.sh 1024",
+    "./start-tp4.sh 2048",
+    "__P_GIT__",
+    "abc1234",
+    "__P_DISPATCH__",
+    "start)",
+    "stop)",
+    "status)",
+    "__P_ENV__",
+    "PORT=8888",
+    "MODEL=glm53",
+    "VLLM_API_KEY=sk-x",
+    "__P_END__",
+  ].join("\n");
+
+  async function recipesApp() {
+    const dir = await testDirectory();
+    const { JobsManager } = await import("./jobs/jobsManager.js");
+    const { RecipeStore } = await import("./serving/recipes.js");
+    const manager = new JobsManager({ send: () => true, isConnected: () => true });
+    const store = new RecipeStore({ filePath: join(await mkdtemp(join(tmpdir(), "cc-")), "serve-recipes.json") });
+    await dir.upsert({ id: "dgx1", name: "dgx-1", kind: "spark", role: "head", lanIp: "10.0.0.11", sshUser: "piresbruno" });
+    await dir.upsert({ id: "nas1", name: "nas1", kind: "nas", role: "standalone" });
+    const app = buildApp({ nodeDirectory: dir, jobsManager: manager, recipeStore: store });
+    return { app, manager, store };
+  }
+
+  it("registers a recipe, runs one probe, and merges parsed meta", async () => {
+    const { app, manager } = await recipesApp();
+    const post = await app.inject({
+      method: "POST",
+      url: "/api/recipes",
+      payload: { nodeId: "dgx1", path: "/home/pires/recipes/GLM", label: "GLM TP4" },
+    });
+    expect(post.statusCode).toBe(201);
+    const { recipe, jobId } = post.json();
+    expect(recipe.entry).toBeNull();
+    expect(manager.get(jobId)).toMatchObject({ kind: "recipe-probe", nodeId: "dgx1" });
+    expect(manager.get(jobId)!.argv[2]).toContain("'/home/pires/recipes/GLM'");
+
+    manager.observeMessage("dgx1", { type: "job-out", reqId: jobId, stream: "out", chunk: PROBE_OUT });
+    manager.observeMessage("dgx1", { type: "job-exit", reqId: jobId, code: 0 });
+
+    const read = await app.inject({ method: "GET", url: `/api/recipes/${recipe.id}` });
+    expect(read.statusCode).toBe(200);
+    expect(read.json()).toMatchObject({
+      entry: "start.sh",
+      label: "GLM TP4",
+      probeError: null,
+    });
+    expect(read.json().meta).toMatchObject({ port: 8888, model: "glm53", class: "repo", entry: "start.sh" });
+    expect(read.json().meta.secretPresence).toEqual({ VLLM_API_KEY: true });
+    await app.close();
+  });
+
+  it("re-registering the same folder returns the existing recipe (202)", async () => {
+    const { app } = await recipesApp();
+    const payload = { nodeId: "dgx1", path: "/home/pires/recipes/GLM" };
+    const first = await app.inject({ method: "POST", url: "/api/recipes", payload });
+    expect(first.statusCode).toBe(201);
+    const second = await app.inject({ method: "POST", url: "/api/recipes", payload });
+    expect(second.statusCode).toBe(202);
+    expect(second.json().recipe.id).toBe(first.json().recipe.id);
+    await app.close();
+  });
+
+  it("validates path/node (400) and guards NAS nodes", async () => {
+    const { app } = await recipesApp();
+    expect(
+      (await app.inject({ method: "POST", url: "/api/recipes", payload: { nodeId: "dgx1", path: "relative" } })).statusCode,
+    ).toBe(400);
+    expect((await app.inject({ method: "POST", url: "/api/recipes", payload: { nodeId: "nope", path: "/x" } })).statusCode).toBe(404);
+    expect(
+      (await app.inject({ method: "POST", url: "/api/recipes", payload: { nodeId: "nas1", path: "/mnt/nas/recipes" } })).statusCode,
+    ).toBe(400);
+    await app.close();
+  });
+
+  it("re-probes an existing recipe and reports 503 when the node is gone", async () => {
+    const { app, manager } = await recipesApp();
+    const post = await app.inject({
+      method: "POST",
+      url: "/api/recipes",
+      payload: { nodeId: "dgx1", path: "/home/pires/recipes/GLM" },
+    });
+    const { recipe } = post.json();
+    // Let the first probe finish so the second isn't a single-flight conflict.
+    const jobId = post.json().jobId;
+    manager.observeMessage("dgx1", { type: "job-exit", reqId: jobId, code: 0 });
+
+    const reprobe = await app.inject({ method: "POST", url: `/api/recipes/${recipe.id}/probe` });
+    expect(reprobe.statusCode).toBe(202);
+
+    manager.observeMessage("dgx1", { type: "job-exit", reqId: reprobe.json().jobId, code: 0 });
+    expect((await app.inject({ method: "POST", url: "/api/recipes/nope/probe" })).statusCode).toBe(404);
+    expect((await app.inject({ method: "DELETE", url: `/api/recipes/${recipe.id}` })).json()).toEqual({ removed: true });
+    expect((await app.inject({ method: "GET", url: `/api/recipes/${recipe.id}` })).statusCode).toBe(404);
+    await app.close();
+  });
+
+  it("stores the probe error when the folder is missing on the node", async () => {
+    const { app, manager } = await recipesApp();
+    const post = await app.inject({
+      method: "POST",
+      url: "/api/recipes",
+      payload: { nodeId: "dgx1", path: "/gone" },
+    });
+    const { recipe, jobId } = post.json();
+    manager.observeMessage("dgx1", { type: "job-out", reqId: jobId, stream: "out", chunk: "__P_NOPATH__" });
+    manager.observeMessage("dgx1", { type: "job-exit", reqId: jobId, code: 0 });
+    const read = await app.inject({ method: "GET", url: `/api/recipes/${recipe.id}` });
+    expect(read.json().probeError).toContain("not found");
+    await app.close();
+  });
+
+  it("409s a second probe while one is running on the node", async () => {
+    const { app } = await recipesApp();
+    await app.inject({ method: "POST", url: "/api/recipes", payload: { nodeId: "dgx1", path: "/a" } });
+    const second = await app.inject({ method: "POST", url: "/api/recipes", payload: { nodeId: "dgx1", path: "/b" } });
+    expect(second.statusCode).toBe(409);
+    await app.close();
+  });
+});

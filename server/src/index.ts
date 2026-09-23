@@ -12,6 +12,7 @@ import { LiveState, type LiveSnapshot } from "./liveState.js";
 import { registerBrowserHub } from "./browserHub.js";
 import { ModelctlService, resolveModelctlPath } from "./modelctl/service.js";
 import { JobsManager } from "./jobs/jobsManager.js";
+import { RecipeStore } from "./serving/recipes.js";
 import type { AgentRegistry } from "./agentHub.js";
 
 const fakeFleet = process.argv.includes("--fake-fleet");
@@ -73,7 +74,15 @@ const jobsManager = new JobsManager({
   send: (nodeId, msg) => registryRef.current?.send(nodeId, msg) ?? false,
   isConnected: (nodeId) => registryRef.current?.isConnected(nodeId) ?? false,
 });
-const app = buildApp({ logger: true, nodeDirectory: directory, modelctl, jobsManager, sshIdentity: env.CC_SSH_IDENTITY });
+const recipeStore = new RecipeStore({ filePath: "config/serve-recipes.json" });
+const app = buildApp({
+  logger: true,
+  nodeDirectory: directory,
+  modelctl,
+  jobsManager,
+  recipeStore,
+  sshIdentity: env.CC_SSH_IDENTITY,
+});
 const hub = registerAgentHub(app, hubDeps, (scope) =>
   registerBrowserHub(scope, () => liveState.snapshot(), (cb) => {
     broadcastListeners.add(cb);

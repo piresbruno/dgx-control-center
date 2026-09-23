@@ -9,6 +9,7 @@ import type { NodeDirectory } from "./nodeDirectory.js";
 import { ModelctlService, NAS_TTL_MS, NODE_TTL_MS } from "./modelctl/service.js";
 import { JobsManager } from "./jobs/jobsManager.js";
 import { jobArgv } from "./jobs/commands.js";
+import { RecipeStore, buildRecipeProbeCommand, parseRecipeProbe, validRecipePath } from "./serving/recipes.js";
 import { VERSION } from "@cc/shared";
 
 export interface AppOptions {
@@ -26,6 +27,8 @@ export interface AppOptions {
   nodeInventoryRunner?: (host: string, user: string, args: string[]) => Promise<string>;
   /** Remote job tracking (M2). Default: a disconnected no-op manager. */
   jobsManager?: JobsManager;
+  /** Serving recipe registry (M3). When set, /api/recipes routes go live. */
+  recipeStore?: RecipeStore;
   /** Test seam: overrides the SSH run used by modelctl provisioning. */
   provisionTransport?: (script: string) => Promise<{ exitCode: number | null; stdout: string; stderr: string }>;
   /** SSH identity key passed to every node SSH call (CC_SSH_IDENTITY default). */
@@ -88,6 +91,92 @@ export function buildApp(opts: AppOptions = {}) {
       if (!job) return reply.code(404).send({ error: "unknown job" });
       return job;
     });
+
+    // ── Serving recipes (M3, ADR-0005: recipes stay user-owned) ──
+    const recipeStore = opts.recipeStore;
+    if (recipeStore) {
+      app.decorate("recipeStore", recipeStore);
+      // Probe jobs are dispatched here; when one finishes, its stdout is the
+      // marker-delimited probe output → parse → merge into the store.
+      const probeJobs = new Map<string, string>(); // reqId → recipeId
+      jobs.onFinished((job) => {
+        const recipeId = probeJobs.get(job.reqId);
+        if (!recipeId) return;
+        probeJobs.delete(job.reqId);
+        recipeStore.updateFromProbe(recipeId, parseRecipeProbe(job.output));
+      });
+
+      app.get("/api/recipes", async () => ({ recipes: recipeStore.list() }));
+
+      app.get("/api/recipes/:id", async (request, reply) => {
+        const { id } = request.params as { id: string };
+        const recipe = recipeStore.get(id);
+        if (!recipe) return reply.code(404).send({ error: "unknown recipe" });
+        return recipe;
+      });
+
+      /** Shared register-or-refresh flow: record in store, dispatch one probe. */
+      const dispatchProbe = (nodeId: string, recipeId: string, recipePath: string) =>
+        jobs.dispatch(nodeId, "recipe-probe", ["bash", "-c", buildRecipeProbeCommand(recipePath)], {
+          timeoutMs: 30_000,
+        });
+
+      app.post("/api/recipes", async (request, reply) => {
+        const body = request.body as { nodeId?: string; path?: string; label?: string; entry?: string } | null;
+        const nodeId = body?.nodeId ?? "";
+        const p = body?.path ?? "";
+        if (!nodeId || !validRecipePath(p)) {
+          return reply.code(400).send({ error: "nodeId and absolute path are required" });
+        }
+        const node = nodeDirectory.get(nodeId);
+        if (!node) return reply.code(404).send({ error: "unknown node" });
+        if (node.kind === "nas") {
+          return reply.code(400).send({ error: "NAS nodes do not host serving recipes" });
+        }
+        const { recipe, created } = recipeStore.register({ sparkId: nodeId, path: p, label: body?.label ?? null });
+        if (body?.entry) recipeStore.setEntry(recipe.id, body.entry);
+        const result = dispatchProbe(nodeId, recipe.id, recipe.path);
+        if ("error" in result) {
+          // A re-registered folder may still have its first probe running —
+          // that probe already merges into this record, so accept it.
+          if (result.error === "conflict" && !created) {
+            return reply.code(202).send({ recipe });
+          }
+          recipeStore.updateFromProbe(recipe.id, {
+            ok: false,
+            error: result.error,
+            meta: null,
+            versions: null,
+            files: [],
+            verbs: [],
+          });
+          const code = result.error === "conflict" ? 409 : 503;
+          return reply.code(code).send({ error: result.error, recipe });
+        }
+        probeJobs.set(result.reqId, recipe.id);
+        return reply.code(created ? 201 : 202).send({ recipe, jobId: result.reqId });
+      });
+
+      /** Re-probe (refresh meta + drift detection). */
+      app.post("/api/recipes/:id/probe", async (request, reply) => {
+        const { id } = request.params as { id: string };
+        const recipe = recipeStore.get(id);
+        if (!recipe) return reply.code(404).send({ error: "unknown recipe" });
+        const result = dispatchProbe(recipe.sparkId, recipe.id, recipe.path);
+        if ("error" in result) {
+          const code = result.error === "conflict" ? 409 : 503;
+          return reply.code(code).send({ error: result.error });
+        }
+        probeJobs.set(result.reqId, recipe.id);
+        return reply.code(202).send({ jobId: result.reqId });
+      });
+
+      app.delete("/api/recipes/:id", async (request, reply) => {
+        const { id } = request.params as { id: string };
+        if (!recipeStore.remove(id)) return reply.code(404).send({ error: "unknown recipe" });
+        return { removed: true };
+      });
+    }
 
     /** Cancel a running job: job-kill to the agent, record marked failed. */
     app.post("/api/jobs/:reqId/cancel", async (request, reply) => {

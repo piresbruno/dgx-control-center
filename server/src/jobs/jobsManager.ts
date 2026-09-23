@@ -47,6 +47,7 @@ export class JobsManager {
   private readonly jobs = new Map<string, JobRecord>();
   private readonly byNode = new Map<string, string[]>();
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly finishedListeners: Array<(job: JobRecord) => void> = [];
   private readonly deps: Required<Pick<JobsManagerDeps, "maxJobsPerNode" | "maxOutputBytes">> &
     Omit<JobsManagerDeps, "maxJobsPerNode" | "maxOutputBytes">;
 
@@ -56,6 +57,19 @@ export class JobsManager {
       maxOutputBytes: deps.maxOutputBytes ?? DEFAULT_MAX_OUTPUT,
       ...deps,
     };
+  }
+
+  /** Subscribe to job terminal transitions (done/failed/interrupted). */
+  onFinished(listener: (job: JobRecord) => void): () => void {
+    this.finishedListeners.push(listener);
+    return () => {
+      const i = this.finishedListeners.indexOf(listener);
+      if (i >= 0) this.finishedListeners.splice(i, 1);
+    };
+  }
+
+  private notifyFinished(job: JobRecord): void {
+    for (const l of this.finishedListeners) l(job);
   }
 
   dispatch(nodeId: string, kind: string, argv: string[], opts: { timeoutMs?: number } = {}): DispatchResult {
@@ -85,6 +99,7 @@ export class JobsManager {
       record.state = "failed";
       record.endedAt = this.deps.now?.() ?? Date.now();
       record.output += "[server] dispatch failed: socket write rejected\n";
+      this.notifyFinished(record);
       return { reqId };
     }
 
@@ -97,6 +112,7 @@ export class JobsManager {
           job.state = "failed";
           job.endedAt = this.deps.now?.() ?? Date.now();
           job.output += `[server] timed out after ${opts.timeoutMs}ms\n`;
+          this.notifyFinished(job);
         }
         this.timers.delete(reqId);
       }, opts.timeoutMs + 5_000); // grace for the kill + exit frame
@@ -128,6 +144,7 @@ export class JobsManager {
         job.endedAt = this.deps.now?.() ?? Date.now();
         job.exitCode = msg.code;
         job.signal = msg.signal;
+        this.notifyFinished(job);
       }
     }
   }
@@ -139,6 +156,7 @@ export class JobsManager {
       if (job?.state === "running") {
         job.state = "interrupted";
         job.endedAt = this.deps.now?.() ?? Date.now();
+        this.notifyFinished(job);
       }
     }
   }
@@ -156,6 +174,7 @@ export class JobsManager {
     job.state = "failed";
     job.endedAt = this.deps.now?.() ?? Date.now();
     job.output += "[server] cancelled by operator\n";
+    this.notifyFinished(job);
     return true;
   }
 
