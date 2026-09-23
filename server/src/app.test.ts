@@ -61,6 +61,65 @@ describe("model inventories (M2)", () => {
   });
 });
 
+describe("remote jobs API (M2)", () => {
+  async function jobsApp() {
+    const dir = await testDirectory();
+    const { JobsManager } = await import("./jobs/jobsManager.js");
+    const sent: unknown[] = [];
+    let connected = true;
+    const manager = new JobsManager({
+      send: (_nodeId, msg) => {
+        sent.push(msg);
+        return connected;
+      },
+      isConnected: () => connected,
+    });
+    await dir.upsert({ id: "dgx1", name: "dgx-1", kind: "spark", role: "head", lanIp: "10.0.0.11", sshUser: "piresbruno" });
+    const app = buildApp({ nodeDirectory: dir, jobsManager: manager });
+    return { app, manager, sent, setConnected: (v: boolean) => (connected = v) };
+  }
+
+  it("dispatches a named kind, then lists and reads it", async () => {
+    const { app, sent } = await jobsApp();
+    const post = await app.inject({ method: "POST", url: "/api/nodes/dgx1/jobs", payload: { kind: "modelctl-list-local" } });
+    expect(post.statusCode).toBe(202);
+    const { reqId } = post.json();
+    expect(sent[0]).toMatchObject({ type: "job-run", reqId });
+
+    const list = await app.inject({ method: "GET", url: "/api/jobs?nodeId=dgx1&active=1" });
+    expect(list.json().jobs).toHaveLength(1);
+
+    const one = await app.inject({ method: "GET", url: `/api/jobs/${reqId}` });
+    expect(one.json()).toMatchObject({ reqId, kind: "modelctl-list-local", state: "running" });
+    await app.close();
+  });
+
+  it("rejects unknown kinds (400), conflicts (409), and disconnected nodes (503)", async () => {
+    const { app, setConnected, manager } = await jobsApp();
+    expect(
+      (await app.inject({ method: "POST", url: "/api/nodes/dgx1/jobs", payload: { kind: "rm -rf /" } })).statusCode,
+    ).toBe(400);
+    await app.inject({ method: "POST", url: "/api/nodes/dgx1/jobs", payload: { kind: "modelctl-version" } });
+    expect(
+      (await app.inject({ method: "POST", url: "/api/nodes/dgx1/jobs", payload: { kind: "modelctl-version" } })).statusCode,
+    ).toBe(409);
+    setConnected(false);
+    expect(manager.list({ active: true })).toHaveLength(1);
+    expect(
+      (await app.inject({ method: "POST", url: "/api/nodes/dgx1/jobs", payload: { kind: "uv-version" } })).statusCode,
+    ).toBe(503);
+    await app.close();
+  });
+
+  it("404s unknown nodes", async () => {
+    const { app } = await jobsApp();
+    expect(
+      (await app.inject({ method: "POST", url: "/api/nodes/nope/jobs", payload: { kind: "modelctl-version" } })).statusCode,
+    ).toBe(404);
+    await app.close();
+  });
+});
+
 describe("GET /api/health", () => {
   it("returns ok with the shared version", async () => {
     const app = buildApp();

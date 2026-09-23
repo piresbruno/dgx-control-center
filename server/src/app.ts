@@ -6,6 +6,8 @@ import { runInstallAgent, type BootstrapTransport } from "./bootstrap/installAge
 import { runSsh } from "./transport/ssh.js";
 import type { NodeDirectory } from "./nodeDirectory.js";
 import { ModelctlService, NAS_TTL_MS, NODE_TTL_MS } from "./modelctl/service.js";
+import { JobsManager } from "./jobs/jobsManager.js";
+import { jobArgv } from "./jobs/commands.js";
 import { VERSION } from "@cc/shared";
 
 export interface AppOptions {
@@ -21,6 +23,8 @@ export interface AppOptions {
   modelctl?: ModelctlService;
   /** Test seam: SSH runner for node modelctl calls (defaults to runSsh). */
   nodeInventoryRunner?: (host: string, user: string, args: string[]) => Promise<string>;
+  /** Remote job tracking (M2). Default: a disconnected no-op manager. */
+  jobsManager?: JobsManager;
 }
 
 /**
@@ -49,6 +53,36 @@ export function buildApp(opts: AppOptions = {}) {
 
     const modelctl = opts.modelctl ?? new ModelctlService();
     app.decorate("modelctl", modelctl);
+
+    const jobs = opts.jobsManager ?? new JobsManager({ send: () => false, isConnected: () => false });
+    app.decorate("jobsManager", jobs);
+
+    /** Dispatch a named job kind to a node's agent (argv resolved server-side). */
+    app.post("/api/nodes/:id/jobs", async (request, reply) => {
+      const { id } = request.params as { id: string };
+      if (!nodeDirectory.get(id)) return reply.code(404).send({ error: "unknown node" });
+      const body = request.body as { kind?: string; timeoutMs?: number } | null;
+      const argv = jobArgv(body?.kind ?? "");
+      if (!argv) return reply.code(400).send({ error: "unknown job kind" });
+      const result = jobs.dispatch(id, body!.kind!, argv, { timeoutMs: body?.timeoutMs });
+      if ("error" in result) {
+        const code = result.error === "conflict" ? 409 : 503;
+        return reply.code(code).send({ error: result.error });
+      }
+      return reply.code(202).send({ reqId: result.reqId });
+    });
+
+    app.get("/api/jobs", async (request) => {
+      const query = request.query as { nodeId?: string; active?: string };
+      return { jobs: jobs.list({ nodeId: query.nodeId, active: query.active === "1" }) };
+    });
+
+    app.get("/api/jobs/:reqId", async (request, reply) => {
+      const { reqId } = request.params as { reqId: string };
+      const job = jobs.get(reqId);
+      if (!job) return reply.code(404).send({ error: "unknown job" });
+      return job;
+    });
 
     // NAS store inventory (modelctl configured against the mounted store).
     app.get("/api/models", async () =>

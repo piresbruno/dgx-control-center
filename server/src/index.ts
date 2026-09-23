@@ -11,6 +11,8 @@ import { MetricsStore } from "./stores/metricsStore.js";
 import { LiveState, type LiveSnapshot } from "./liveState.js";
 import { registerBrowserHub } from "./browserHub.js";
 import { ModelctlService, resolveModelctlPath } from "./modelctl/service.js";
+import { JobsManager } from "./jobs/jobsManager.js";
+import type { AgentRegistry } from "./agentHub.js";
 
 const fakeFleet = process.argv.includes("--fake-fleet");
 const env = serverEnvSchema.parse(process.env);
@@ -40,6 +42,7 @@ let fleet: FakeFleetHandle | null = null;
 const onAgentMessage = (sparkId: string, msg: AgentToServer) => {
   reconciler?.observeMessage(sparkId, msg);
   liveState.observeMessage(sparkId, msg);
+  jobsManager?.observeMessage(sparkId, msg);
   if (msg.type === "metrics") metricsStore.ingest(sparkId, msg);
 };
 const hubDeps = fakeFleet
@@ -65,7 +68,12 @@ if (fakeFleet) {
   await directory.upsert({ id: "nas1", name: "nas1", kind: "nas", role: "standalone" });
 }
 
-const app = buildApp({ logger: true, nodeDirectory: directory, modelctl });
+const registryRef: { current: AgentRegistry | null } = { current: null };
+const jobsManager = new JobsManager({
+  send: (nodeId, msg) => registryRef.current?.send(nodeId, msg) ?? false,
+  isConnected: (nodeId) => registryRef.current?.isConnected(nodeId) ?? false,
+});
+const app = buildApp({ logger: true, nodeDirectory: directory, modelctl, jobsManager });
 const hub = registerAgentHub(app, hubDeps, (scope) =>
   registerBrowserHub(scope, () => liveState.snapshot(), (cb) => {
     broadcastListeners.add(cb);
@@ -77,6 +85,7 @@ app.decorate("agentRegistry", hub);
 
 const registry = hub;
 if (registry) {
+  registryRef.current = registry;
   reconciler = new Reconciler({
     directory,
     desired,
@@ -85,7 +94,12 @@ if (registry) {
     onConfigUpdate: () => broadcast(),
   });
   const ticker = setInterval(() => reconciler?.tick(Date.now()), 2_000);
-  const watchdog = setInterval(() => registry.sweep(Date.now(), 30_000), 10_000);
+  const watchdog = setInterval(() => {
+    registry.sweep(Date.now(), 30_000);
+    for (const job of jobsManager.list({ active: true })) {
+      if (!registry.isConnected(job.nodeId)) jobsManager.onNodeDisconnected(job.nodeId);
+    }
+  }, 10_000);
   ticker.unref();
   watchdog.unref();
   app.addHook("onClose", async () => {
