@@ -18,6 +18,7 @@ import { ServedModelsStore } from "./gateway/servedModels.js";
 import { ClientsStore } from "./gateway/clients.js";
 import { TracesStore } from "./stores/tracesStore.js";
 import { TraceQueries } from "./stores/traceQueries.js";
+import { ClockProfileStore } from "./power/clockStore.js";
 import type { AgentRegistry } from "./agentHub.js";
 
 const fakeFleet = process.argv.includes("--fake-fleet");
@@ -83,6 +84,7 @@ const recipeStore = new RecipeStore({ filePath: "config/serve-recipes.json" });
 const servedModelsStore = new ServedModelsStore({ filePath: "config/served-models.json" });
 const clientsStore = new ClientsStore({ filePath: "config/clients.json" });
 const deploymentStore = new DeploymentStore({ filePath: "config/serve-deployments.json" });
+const clockStore = new ClockProfileStore({ filePath: "config/clock-profiles.json" });
 const app = buildApp({
   logger: true,
   nodeDirectory: directory,
@@ -92,6 +94,7 @@ const app = buildApp({
   deploymentStore,
   servedModelsStore,
   clientsStore,
+  clockStore,
   tracesStore: new TracesStore({ db }),
   traceQueries: new TraceQueries(db),
   upstreamAuth: env.CC_UPSTREAM_AUTH ?? null,

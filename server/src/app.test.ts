@@ -569,3 +569,39 @@ describe("gateway /v1 + analysis API (M4)", () => {
     await app.close();
   });
 });
+
+describe("power & clocks API (M5)", () => {
+  async function powerApp() {
+    const dir = await testDirectory();
+    const { ClockProfileStore } = await import("./power/clockStore.js");
+    const store = new ClockProfileStore({ filePath: join(await mkdtemp(join(tmpdir(), "cc-pw-")), "clock.json") });
+    await dir.upsert({ id: "dgx1", name: "dgx-1", kind: "spark", role: "head", lanIp: "10.0.0.11", sshUser: "u" });
+    await dir.upsert({ id: "nas1", name: "nas1", kind: "nas", role: "standalone" });
+    return { app: buildApp({ nodeDirectory: dir, clockStore: store }), store };
+  }
+
+  it("lists profiles and per-spark desires", async () => {
+    const { app } = await powerApp();
+    const profiles = await app.inject({ method: "GET", url: "/api/power/profiles" });
+    expect(profiles.json().profiles.map((p: { id: string }) => p.id)).toEqual(["full", "eco", "quiet"]);
+    const clocks = await app.inject({ method: "GET", url: "/api/power/clocks" });
+    expect(clocks.json().clocks).toEqual([expect.objectContaining({ sparkId: "dgx1", desired: "full" })]);
+    await app.close();
+  });
+
+  it("sets desires for sparks, 409s nas, 404s unknown, 400s bad profile", async () => {
+    const { app } = await powerApp();
+    const ok = await app.inject({ method: "PUT", url: "/api/power/clocks/dgx1", payload: { profile: "eco" } });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().resolved).toMatchObject({ gpuMaxMhz: 2200, cpuMaxMhz: 2000, clamped: false });
+
+    const nas = await app.inject({ method: "PUT", url: "/api/power/clocks/nas1", payload: { profile: "eco" } });
+    expect(nas.statusCode).toBe(409);
+    expect((await app.inject({ method: "PUT", url: "/api/power/clocks/nope", payload: { profile: "eco" } })).statusCode).toBe(404);
+    expect((await app.inject({ method: "PUT", url: "/api/power/clocks/dgx1", payload: { profile: "turbo" } })).statusCode).toBe(400);
+
+    const clocks = await app.inject({ method: "GET", url: "/api/power/clocks" });
+    expect(clocks.json().clocks[0]).toMatchObject({ sparkId: "dgx1", desired: "eco" });
+    await app.close();
+  });
+});

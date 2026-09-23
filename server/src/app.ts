@@ -20,6 +20,8 @@ import { TracesStore } from "./stores/tracesStore.js";
 import { TraceQueries } from "./stores/traceQueries.js";
 import { RequestRecorder } from "./gateway/recorder.js";
 import { OnDemandManager } from "./gateway/onDemand.js";
+import { CLOCK_PROFILES, profileById, resolveProfile } from "./power/profiles.js";
+import type { ClockProfileStore } from "./power/clockStore.js";
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { VERSION } from "@cc/shared";
 
@@ -79,6 +81,8 @@ export interface AppOptions {
   clientsStore?: ClientsStore;
   /** Default upstream Authorization injected when the client sends none. */
   upstreamAuth?: string | null;
+  /** Desired clock profiles (M5). When set, /api/power/clocks routes go live. */
+  clockStore?: ClockProfileStore;
 }
 
 /**
@@ -621,6 +625,45 @@ export function buildApp(opts: AppOptions = {}) {
         out.push(`cc_gateway_ttft_p50_ms ${k.ttftP50Ms ?? "NaN"}`);
         out.push(`cc_gateway_ttft_p95_ms ${k.ttftP95Ms ?? "NaN"}`);
         return out.join("\n") + "\n";
+      });
+    }
+
+    // ── Power & clocks (M5): profile registry + desired state ──
+    const clockStore = opts.clockStore;
+    if (clockStore) {
+      app.decorate("clockStore", clockStore);
+
+      app.get("/api/power/profiles", async () => ({ profiles: CLOCK_PROFILES }));
+
+      app.get("/api/power/clocks", async () => ({
+        clocks: nodeDirectory
+          .list()
+          .filter((n) => n.kind === "spark")
+          .map((n) => {
+            const desire = clockStore.desiredFor(n.id);
+            const profile = profileById(desire.profile);
+            return {
+              sparkId: n.id,
+              desired: desire.profile,
+              resolved: profile ? resolveProfile(profile, null) : null,
+              updatedAt: desire.updatedAt,
+            };
+          }),
+      }));
+
+      /** Set the desired profile — spark nodes only (409 otherwise). */
+      app.put("/api/power/clocks/:sparkId", async (request, reply) => {
+        const { sparkId } = request.params as { sparkId: string };
+        const node = nodeDirectory.get(sparkId);
+        if (!node) return reply.code(404).send({ error: "unknown node" });
+        if (node.kind !== "spark") {
+          return reply.code(409).send({ error: "clock control is spark-only", kind: node.kind });
+        }
+        const body = request.body as { profile?: string } | null;
+        const rec = body?.profile ? clockStore.set(sparkId, body.profile) : null;
+        if (!rec) return reply.code(400).send({ error: "unknown profile" });
+        const profile = profileById(rec.profile)!;
+        return { sparkId, desired: rec.profile, resolved: resolveProfile(profile, null) };
       });
     }
 
