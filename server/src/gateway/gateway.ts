@@ -41,6 +41,10 @@ export interface GatewayDeps {
   onAttempt?: (info: { alias: string; nodeId: string; port: number; status: number | null; error?: string; startedAt: number; endedAt: number }) => void;
   /** Observe response chunks with arrival times (request recorder). */
   onResponseChunk?: (chunk: string, atMs: number) => void;
+  /** Router-managed spin-up hook: return true when a start was dispatched. */
+  ensureOnDemand?: (alias: string) => Promise<boolean> | boolean;
+  /** How long to wait for a spun-up engine before giving up (503). */
+  warmupTimeoutMs?: number;
 }
 
 export interface GatewayRequest {
@@ -130,20 +134,21 @@ export async function handleGatewayRequest(deps: GatewayDeps, req: GatewayReques
     };
   }
   const rrCounters = deps.rrCounters ?? new Map<string, number>();
-  const route = resolveRoute(deps.servedModels, alias, (t) => {
+  const healthFn = (t: ServedModelTarget): TargetHealth => {
     const st = deps.targetState(t);
     return healthFromState(st?.state);
-  }, rrCounters.get(alias) ?? 0);
-  if ("error" in route) {
-    const status = route.error === "unknown-alias" ? 404 : 409;
+  };
+  const resolved = resolveRoute(deps.servedModels, alias, healthFn, rrCounters.get(alias) ?? 0);
+  if ("error" in resolved) {
+    const status = resolved.error === "unknown-alias" ? 404 : 409;
     return {
       status,
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         error: {
-          message: route.error === "unknown-alias" ? `unknown model ${alias}` : `model ${alias} has no targets`,
+          message: resolved.error === "unknown-alias" ? `unknown model ${alias}` : `model ${alias} has no targets`,
           type: "routing",
-          ...(route.error === "unknown-alias" ? { served: route.servedNames } : {}),
+          ...(resolved.error === "unknown-alias" ? { served: resolved.servedNames } : {}),
         },
       }),
       servedBy: null,
@@ -151,6 +156,29 @@ export async function handleGatewayRequest(deps: GatewayDeps, req: GatewayReques
     };
   }
   rrCounters.set(alias, (rrCounters.get(alias) ?? 0) + 1);
+
+  // Router-managed model with everything down: spin the recipe up first and
+  // wait (bounded) for a live target before routing.
+  let route: Extract<typeof resolved, { chain: unknown }> = resolved;
+  if (route.onDemand && (route.chain.length === 0 || route.chain.every((t) => t.health === "down")) && deps.ensureOnDemand) {
+    const spun = await deps.ensureOnDemand(alias);
+    if (spun) {
+      const deadline = (deps.now?.() ?? Date.now()) + (deps.warmupTimeoutMs ?? 60_000);
+      for (;;) {
+        const fresh = resolveRoute(deps.servedModels, alias, healthFn, rrCounters.get(alias) ?? 0);
+        if ("chain" in fresh && fresh.chain.some((t) => t.health !== "down")) {
+          route = fresh;
+          break;
+        }
+        if ((deps.now?.() ?? Date.now()) >= deadline) break;
+        await new Promise((r) => setTimeout(r, 1_000));
+      }
+    }
+  }
+  if (!("chain" in route)) {
+    // resolveRoute can only fail with the errors handled above; guarded for TS.
+    return { status: 404, headers: { "content-type": "application/json" }, body: "{}", servedBy: null, attempts };
+  }
 
   // 3. Try the chain in order; failover on network error or 5xx.
   const upstreamHeaders: Record<string, string> = {};

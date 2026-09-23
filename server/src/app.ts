@@ -19,6 +19,7 @@ import { handleGatewayRequest, healthFromState } from "./gateway/gateway.js";
 import { TracesStore } from "./stores/tracesStore.js";
 import { TraceQueries } from "./stores/traceQueries.js";
 import { RequestRecorder } from "./gateway/recorder.js";
+import { OnDemandManager } from "./gateway/onDemand.js";
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { VERSION } from "@cc/shared";
 
@@ -138,6 +139,24 @@ export function buildApp(opts: AppOptions = {}) {
 
     // ── Serving recipes (M3, ADR-0005: recipes stay user-owned) ──
     const recipeStore = opts.recipeStore;
+    const deploymentStore = opts.deploymentStore;
+    const supervisor =
+      recipeStore && deploymentStore
+        ? (opts.serveSupervisor ??
+          new DeploymentSupervisor({
+            jobs,
+            recipes: {
+              // RecipeRecord.meta is optional (zod default) — normalize to the
+              // supervisor's required shape.
+              get: (id: string) => {
+                const r = recipeStore.get(id);
+                return r ? { ...r, meta: r.meta ?? null, versions: r.versions ?? null } : null;
+              },
+            },
+            store: deploymentStore,
+          }))
+        : null;
+    if (supervisor) app.decorate("serveSupervisor", supervisor);
     if (recipeStore) {
       app.decorate("recipeStore", recipeStore);
       // Probe jobs are dispatched here; when one finishes, its stdout is the
@@ -223,23 +242,7 @@ export function buildApp(opts: AppOptions = {}) {
     }
 
     // ── Serve deployments (M3) ──
-    const deploymentStore = opts.deploymentStore;
-    if (recipeStore && deploymentStore) {
-      const supervisor =
-        opts.serveSupervisor ??
-        new DeploymentSupervisor({
-          jobs,
-          recipes: {
-            // RecipeRecord.meta is optional (zod default) — normalize to the
-            // supervisor's required shape.
-            get: (id: string) => {
-              const r = recipeStore.get(id);
-              return r ? { ...r, meta: r.meta ?? null, versions: r.versions ?? null } : null;
-            },
-          },
-          store: deploymentStore,
-        });
-      app.decorate("serveSupervisor", supervisor);
+    if (recipeStore && deploymentStore && supervisor) {
 
       /** Observed state join for one deployment (pure factors from stores). */
       const stateOf = (d: DeploymentRecord) => {
@@ -457,6 +460,12 @@ export function buildApp(opts: AppOptions = {}) {
         return { nodeId: t.nodeId, port: t.port, host: node?.lanIp ?? null, state };
       };
 
+      const onDemand =
+        deploymentStore && supervisor
+          ? new OnDemandManager({ servedModels: servedModelsStore, deployments: deploymentStore, supervisor })
+          : null;
+      app.decorate("onDemand", onDemand);
+
       app.all("/v1/*", async (request, reply) => {
         const rest = (request.params as Record<string, string>)["*"] ?? "";
         const body = typeof request.body === "string" ? request.body : request.body != null ? JSON.stringify(request.body) : null;
@@ -478,6 +487,8 @@ export function buildApp(opts: AppOptions = {}) {
             rrCounters,
             upstreamAuth: opts.upstreamAuth ?? null,
             onResponseChunk: (chunk, atMs) => recorder.chunk(chunk, atMs),
+            ensureOnDemand: onDemand ? (a: string) => onDemand.ensureUp(a).then((r) => r.ok) : undefined,
+            warmupTimeoutMs: 120_000,
           },
           {
             method: request.method,
@@ -490,6 +501,7 @@ export function buildApp(opts: AppOptions = {}) {
             body,
           },
         );
+        if (onDemand) onDemand.touch(bodyModel(body) ?? "");
         if (traces) {
           const trace = recorder.finish({
             ts: Date.now(),

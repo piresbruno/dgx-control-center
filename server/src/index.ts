@@ -97,6 +97,8 @@ const app = buildApp({
   upstreamAuth: env.CC_UPSTREAM_AUTH ?? null,
   sshIdentity: env.CC_SSH_IDENTITY,
 });
+const onDemand = (app as unknown as { onDemand: { startSweeper(): () => void } | undefined }).onDemand;
+onDemand?.startSweeper();
 const hub = registerAgentHub(app, hubDeps, (scope) =>
   registerBrowserHub(scope, () => liveState.snapshot(), (cb) => {
     broadcastListeners.add(cb);
