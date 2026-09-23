@@ -1,8 +1,12 @@
 import Fastify from "fastify";
+import type { AgentHubDeps } from "./agentHub.js";
+import { registerAgentHub } from "./agentHub.js";
 import { VERSION } from "@cc/shared";
 
 export interface AppOptions {
   logger?: boolean;
+  /** When provided, /agent-ws is live with these deps (real fleet or --fake-fleet). */
+  agentHubDeps?: AgentHubDeps;
 }
 
 /**
@@ -18,6 +22,10 @@ export function buildApp(opts: AppOptions = {}) {
     version: VERSION,
     time: new Date().toISOString(),
   }));
+
+  if (opts.agentHubDeps) {
+    app.decorate("agentRegistry", registerAgentHub(app, opts.agentHubDeps));
+  }
 
   return app;
 }

@@ -42,6 +42,12 @@ export interface AgentConnection {
   lastSeen: number;
 }
 
+declare module "fastify" {
+  interface FastifyInstance {
+    agentRegistry?: AgentRegistry;
+  }
+}
+
 export class AgentRegistry {
   private readonly connections = new Map<string, AgentConnection>();
   private readonly messageHandlers = new Set<(sparkId: string, msg: AgentToServer) => void>();
