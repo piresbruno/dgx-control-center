@@ -5,8 +5,11 @@ import { NodePage } from "./pages/NodePage.js";
 import { ModelsPage } from "./pages/ModelsPage.js";
 import { ServePage } from "./pages/ServePage.js";
 import { RecipesPage } from "./pages/RecipesPage.js";
+import { AnalysisPage } from "./pages/AnalysisPage.js";
+import { ClientsPage } from "./pages/ClientsPage.js";
+import { RouterPage } from "./pages/RouterPage.js";
 
-type PageId = "overview" | "node" | "models" | "serve" | "recipes" | "alerts" | "settings";
+type PageId = "overview" | "node" | "models" | "serve" | "recipes" | "analysis" | "clients" | "router" | "alerts" | "settings";
 
 const NAV: Array<{ sec?: string; id?: PageId; label?: string }> = [
   { sec: "Fleet" },
@@ -17,6 +20,10 @@ const NAV: Array<{ sec?: string; id?: PageId; label?: string }> = [
   { sec: "Serving" },
   { id: "recipes", label: "Recipes" },
   { id: "serve", label: "Serve" },
+  { sec: "Gateway" },
+  { id: "router", label: "Router" },
+  { id: "clients", label: "Clients" },
+  { id: "analysis", label: "Analysis" },
   { sec: "Coming in later milestones" },
   { id: "alerts", label: "Alerts" },
   { id: "settings", label: "Settings" },
@@ -92,6 +99,9 @@ export function App() {
           {page === "models" && <ModelsPage />}
           {page === "recipes" && <RecipesPage />}
           {page === "serve" && <ServePage />}
+          {page === "analysis" && <AnalysisPage />}
+          {page === "clients" && <ClientsPage />}
+          {page === "router" && <RouterPage />}
           {page === "alerts" && (
             <div className="panel"><div className="panel-body"><div className="empty">Alerts ship at M6 — see PLAN.md F5a.</div></div></div>
           )}
