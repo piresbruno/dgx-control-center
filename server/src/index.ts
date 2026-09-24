@@ -125,12 +125,17 @@ setInterval(() => {
 // ── Alert evaluation (M6/F5a): 1-minute-ish tick over the live pipeline ──
 setInterval(() => {
   const snap = liveState.snapshot();
-  const samples: EngineSample[] = snap.nodes.map((n) => ({
-    sparkId: n.sparkId,
-    reachable: registryRef.current?.isConnected(n.sparkId) ?? false,
-    leaves: flattenNumbers(n.domains),
-    gateway5xxPct: null,
-  }));
+  const byId = new Map(snap.nodes.map((n) => [n.sparkId, n]));
+  // Sample the DIRECTORY — a pulled agent must still be visible as down.
+  const samples: EngineSample[] = directory
+    .list()
+    .filter((n) => n.kind === "spark")
+    .map((n) => ({
+      sparkId: n.id,
+      reachable: registryRef.current?.isConnected(n.id) ?? false,
+      leaves: byId.has(n.id) ? flattenNumbers(byId.get(n.id)!.domains) : {},
+      gateway5xxPct: null,
+    }));
   // Fleet-level 5xx over the last 10 minutes.
   const k = traceQueries.kpis(Date.now() - 10 * 60_000);
   const g5xx = k.requests > 0 ? k.errorRate * 100 : null;
