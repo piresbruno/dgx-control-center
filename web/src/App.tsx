@@ -12,12 +12,14 @@ import { EnergyPage } from "./pages/PowerPage.js";
 import { AlertsPage } from "./pages/AlertsPage.js";
 import { FleetExplorerPage } from "./pages/FleetExplorerPage.js";
 import { SettingsPage } from "./pages/SettingsPage.js";
+import { ChatPage } from "./pages/ChatPage.js";
 
-type PageId = "overview" | "node" | "models" | "serve" | "recipes" | "analysis" | "clients" | "router" | "energy" | "alerts" | "fleet" | "settings";
+type PageId = "overview" | "chat" | "node" | "models" | "serve" | "recipes" | "analysis" | "clients" | "router" | "energy" | "alerts" | "fleet" | "settings";
 
 const NAV: Array<{ sec?: string; id?: PageId; label?: string }> = [
   { sec: "Fleet" },
   { id: "overview", label: "Overview" },
+  { id: "chat", label: "Chat" },
   { id: "node", label: "Nodes" },
   { sec: "Model Plane" },
   { id: "models", label: "Models" },
@@ -95,7 +97,6 @@ export function App() {
               key={item.id}
               className={page === item.id ? "nav-item active" : "nav-item"}
               data-testid={`nav-${item.id}`}
-              data-testid={`nav-${item.id}`}
               onClick={() => navigate(item.id!)}
             >
               {item.label}
@@ -129,6 +130,7 @@ export function App() {
           {page === "clients" && <ClientsPage />}
           {page === "router" && <RouterPage />}
           {page === "energy" && <EnergyPage />}
+          {page === "chat" && <ChatPage />}
           {page === "alerts" && <AlertsPage />}
           {page === "fleet" && <FleetExplorerPage />}
           {page === "settings" && <SettingsPage />}

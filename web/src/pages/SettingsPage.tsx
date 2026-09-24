@@ -43,7 +43,11 @@ export function SettingsPage() {
     void refresh();
   }, [refresh]);
 
-  const patch = async (p: Partial<SystemSettings>, note: string) => {
+  /** PATCH accepts deep-partial settings (e.g. a single retention field). */
+  const patch = async (
+    p: { retention?: Partial<SystemSettings["retention"]>; capture?: Partial<SystemSettings["capture"]>; corsOrigins?: string[] },
+    note: string,
+  ) => {
     setError(null);
     setMessage(null);
     try {

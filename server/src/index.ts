@@ -83,9 +83,9 @@ const broadcast = (): void => {
 
 if (fakeFleet) {
   // The fake fleet must be registered nodes so the reconciler tracks them.
-  await directory.upsert({ id: "dgx1", name: "dgx1", kind: "spark", role: "head", llmPorts: [8888] });
-  await directory.upsert({ id: "dgx2", name: "dgx2", kind: "spark", role: "worker", llmPorts: [8889] });
-  await directory.upsert({ id: "nas1", name: "nas1", kind: "nas", role: "standalone" });
+  await directory.upsert({ id: "dgx1", name: "dgx1", kind: "spark", role: "head", llmPorts: [8888], lanIp: "127.0.0.1" });
+  await directory.upsert({ id: "dgx2", name: "dgx2", kind: "spark", role: "worker", llmPorts: [8889], lanIp: "127.0.0.1" });
+  await directory.upsert({ id: "nas1", name: "nas1", kind: "nas", role: "standalone", lanIp: "127.0.0.1" });
 }
 
 // ── Thermal guard (M5): auto-derate on GPU heat, revert on sustained recovery ──

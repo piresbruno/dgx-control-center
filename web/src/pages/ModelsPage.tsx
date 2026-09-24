@@ -107,11 +107,12 @@ function DoctorRow({ nodes }: { nodes: NodeInfo[] }) {
     <div className="doctor-row" style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "10px 0 16px" }}>
       {nodes.map((node) => {
         const check = checks[node.id];
+        const outcome = check === "loading" || check === undefined ? null : check;
         return (
-          <span key={node.id} className={`pill ${check?.ok ? "ok" : check === "loading" ? "info" : "crit"}`} data-testid={`doctor-${node.id}`}>
+          <span key={node.id} className={`pill ${outcome ? (outcome.ok ? "ok" : "crit") : "info"}`} data-testid={`doctor-${node.id}`}>
             <span className="dot" />
-            {node.name}: {check === "loading" ? "checking…" : check?.ok ? `modelctl ${check.version ?? ""}` : (check?.reason ?? "unreachable")}
-            {!check?.ok && check !== "loading" && (
+            {node.name}: {outcome === null ? "checking…" : outcome.ok ? `modelctl ${outcome.version ?? ""}` : (outcome.reason ?? "unreachable")}
+            {outcome !== null && !outcome.ok && (
               <button className="btn" style={{ marginLeft: 8 }} disabled={provisioning === node.id} onClick={() => void provision(node.id)}>
                 {provisioning === node.id ? "installing…" : "Install"}
               </button>
