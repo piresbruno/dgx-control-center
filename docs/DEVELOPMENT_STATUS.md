@@ -1,52 +1,47 @@
 # Development Status — pick-up-elsewhere note
 
-_Last updated: 2026-09-24. Branch `main`. 285 tests, ~86% lines coverage, `.agentic/bin/validate` green._
+_Last updated: 2026-09-24. Branch `main`. 305 tests, ~84 % lines coverage (gate 75 %), `.agentic/bin/validate` green, Playwright e2e green on the fake fleet._
 
 ## Where we are
 
-**M0–M4 complete (all gates passed on the real 3-node fleet), M5 Power & Clocks 6/10.** Full task state lives in the PLAN.md roadmap + the session todo tracker (56→62/92 done at last commit). Gate outcomes are recorded inline in PLAN.md under each milestone.
+**M0–M6 complete, M7 7/8 (gate PASSED), M8 Chat UI pending.** 83/92 roadmap tasks done. Gate outcomes are recorded inline in PLAN.md under each milestone. The only blocked item is the release tag: **v1.0.0 is deferred by owner decision until M8 lands** (release config documented in `docs/RELEASING.md`; CHANGELOG prepared with a dated 0.1.0 section).
 
 ### Done and verified on real hardware
 
 - **M1 Fleet Core** — agent WebSocket hub, live metrics (cpu/gpu/memory/network/storage), SQLite 1m/1h/1d rollups, node directory, desired-state reconciler, Overview/Node pages. Both DGXs report `consistent` via `/ws`.
 - **M2 Model Plane** — modelctl service (TTL caches, stale-serve), remote job channel (`job-run/out/exit`), placement planner, modelctl provisioning over SSH, Models page (catalog/presence/download queue). Gate: download → sync → visible on NAS+DGX.
-- **M3 Serving** — recipe registry + read-only probe (verbs, `.env` public keys, secret presence-only, container scrape, git drift), deployment supervisor + 10-state join, multi-node exact-delta guard, VRAM/UMA budget estimator, Serve/Recipes pages, per-node pass-through `/llm/node/:id/:port/*`. Gate: scratch-engine lifecycle register→start→healthy→stop + orphan recovery after dashboard restart (TP=2 start deferred by owner decision — recorded in PLAN.md).
-- **M4 Gateway & Analysis** — served-models router (healthy-first chains, round-robin), `/v1` gateway with hashed client keys/scopes and client-header-wins auth injection, request recorder (TTFT/ITL/tokens), SQLite traces (caps/redact/retention), aggregations, Prometheus + CSV, Analysis/Clients/Router pages. Gate: live keyed routing to the real GLM engine (alias rewrite, `'OK'` completion, usage recorded) + 502 failover drill with attempts trail.
-- **M5 (partial)** — clock profiles (full/eco/quiet) with hw-limit clamping, desired-profile store (write-through to desired-state.json), `cc-clock` sudoers-scoped helper + installer, caps pushed via `welcome`/`config-update`, caps-aware agent reconcile (boot re-apply), thermal guard (auto-derate w/ hysteresis + event ring), timezone schedules (30s evaluator), energy accounting (kWh/cost from 1m power leaves — **0.4487 kWh measured live over 24 h**), Node Power card + Energy page.
+- **M3 Serving** — recipe registry + probe (verbs, `.env` public keys, secret presence-only, container scrape, git drift), deployment supervisor + 10-state join, multi-node exact-delta guard, VRAM/UMA budget estimator, Serve/Recipes pages, per-node pass-through `/llm/node/:id/:port/*`. Gate: scratch-engine lifecycle + orphan recovery after dashboard restart; GLM TP=2 deployed from the UI.
+- **M4 Gateway & Analysis** — served-models router (healthy-first chains, round-robin), `/v1` gateway with hashed client keys/scopes, request recorder (TTFT/ITL/tokens), SQLite traces, aggregations, Prometheus + CSV, Analysis/Clients/Router pages. Gate: keyed routing to the real GLM engine + 502 failover drill.
+- **M5 Power & Clocks** — clock profiles (full/eco/quiet) with hw-limit clamping, `cc-clock` sudoers-scoped helper + installer, caps pushed via `welcome`/`config-update`, boot re-apply, thermal guard, timezone schedules, energy accounting (0.4487 kWh / 24 h measured), Node Power card + Energy page. Live clock apply awaits the one-time sudoers install (manual two-line step; see RUNBOOKS).
+- **M6 Observability** — alert rules engine + lifecycle + delivery (WS toast, webhooks), fabric panel, benchmarks-as-jobs, Alerts/Fleet/Energy pages. Gate: pulled-agent alert fired→resolved live; kWh rollups from real watts.
+- **M7 Hardening & Release (7/8)** — config export/import + backup tooling, retention enforcement + WAL checkpointing, Settings pages (capture/retention/origins/tokens/maintenance), version-floor agent upgrade job + capability sweep, RUNBOOKS complete + generated API reference (`/api/openapi.json`), **Playwright e2e suite on the fake fleet (5 specs, `npm run test:e2e`)**, and the **M7 gate: fresh-machine install from README to first request = 9 m 0 s** (budget 30 min; evidence in PLAN.md M7).
 
 ### Remaining
 
-- **M5 (4/10):** `tests: power/clocks ≥75% coverage` (power dir already at 95.88% — needs only a coverage-report check), `M5 gate: reboot reconcile + thermal trigger + spark-only 409` (reboot reconcile + spark-only are unit-proven; live sudo install pending the manual step below).
-- **M6 Observability** — alert rules engine, lifecycle, delivery, fabric panel, benchmarks-as-jobs, Alerts/Fleet/Energy pages.
-- **M7 Hardening** — config export/import, retention/WAL checkpoint, Settings pages, agent upgrade job, RUNBOOKS + API docs, Playwright e2e, semver v1.0.0.
-- **M8 Chat UI** — chat store, SSE proxy over served-models, folder-as-project context, image attachments.
+- **M8 Chat UI (7+1 tasks)** — chat store (conversations/folders/messages/attachments in SQLite), chat completions proxy over served-models with SSE streaming, folder-as-project context injected into prompts, image attachments + vision-capable routing, Chat page (list/folders/streaming markdown), tests ≥75 % coverage, M8 gate (chat end-to-end + folder context persisted).
+- **Release (blocked)** — v1.0.0 tag via the `semantic-versioning` skill, to run after M8 lands.
 
 ## Live stack topology (as deployed on dgx-1)
 
-- **Dashboard runs via `docker compose up -d --build`** on port **5566** (5555 is banned — sparkControl uses it). Bind mount `./config/` holds all durable state: `nodes.json`, `desired-state.json`, `serve-recipes.json`, `serve-deployments.json`, `served-models.json`, `clients.json`, `clock-profiles.json`, `clock-schedules.json`, `thermal-state.json`, `controlcenter.db`.
-- **dgx-1 (this machine)** runs its agent **bare-metal**: `nohup node agent/dist/agent.mjs run`, config `~/.controlcenter/agent/config.json` → `http://127.0.0.1:5566`. Rebuild the bundle after agent changes: `npm run build:agent` then restart the process.
-- **dgx2** runs the agent from `~/.local/cc-agent/agent.mjs` via its bundled node (`./node/bin/node`), dashboardUrl points at dgx-1's tailscale IP `100.95.7.60:5566`. Deploy a rebuilt bundle: `scp agent/dist/agent.mjs` over there.
-- **modelctl** runs in the dashboard container via bind mounts at identical host paths (`~/.local/share/uv/tools/modelctl`, `~/.local/bin/modelctl`, `~/.config/modelctl`, `/mnt/nas:ro`, `~/.ssh:ro`); `CC_SSH_IDENTITY=/home/piresbruno/.ssh/id_ed25519`.
-- Web UI in dev: `npm run dev:web` (:5173, proxies `/api`); the compose container serves the API/WS only.
+- **Dashboard runs via `docker compose up -d --build`** on port **5566** (5555 is banned — sparkControl uses it). Bind mount `./config/` holds all durable state: `nodes.json`, `desired-state.json`, `serve-recipes.json`, `serve-deployments.json`, `served-models.json`, `clients.json`, `clock-profiles.json`, `clock-schedules.json`, `thermal-state.json`, `settings.json`, `controlcenter.db`.
+- **dgx-1 (this machine)** runs its agent **bare-metal** with the repo's bundled node: `setsid sh -c 'cd ~/developer/controlcenter && exec node agent/dist/agent.mjs run >> /tmp/agent-dgx1.log 2>&1 < /dev/null' &`, config `~/.controlcenter/agent/config.json` → `http://127.0.0.1:5566`. Rebuild the bundle after agent changes: `npm run build:agent` then restart the process.
+- **dgx2** runs the agent from `~/.local/cc-agent/agent.mjs` via its bundled node (`~/.local/cc-agent/node/bin/node`), dashboardUrl `http://100.95.7.60:5566`. Deploy a rebuilt bundle: `scp agent/dist/agent.mjs dgx2:~/.local/cc-agent/` then restart. **Run exactly ONE agent per sparkId** — a duplicate connection replaces the old socket (eviction storm; ledger of past incidents in RUNBOOKS).
+- **modelctl** runs in the dashboard container via bind mounts at identical host paths (`~/.local/share/uv/tools/modelctl`, `~/.local/bin/modelctl`, `~/.config/modelctl`, `/mnt/nas:ro`, `~/.ssh:ro`); `CC_SSH_IDENTITY=/home/piresbruno/.ssh/id_ed25519`. Its model roots are **HOME-relative** — isolated-HOME agent drills must expose `~/.config/modelctl`.
+- **Serving state on the fleet**: the GLM TP=2 deployment is stopped (containers removed) — start it from the Serve page when needed. A working **qwen3-0.6b recipe** lives on dgx2 at `~/recipes/qwen3-0.6b` (start/stop/status + `.env`; vLLM OpenAI image `vllm/vllm-openai:qwen38-flash-next`, cache volume `cc-qwen-cache` for ~40 s warm boots). The README quickstart reproduces it.
+- Web UI in dev: `npm run dev:web` (:5173, proxies `/api` **and `/ws`**); the compose container serves the API/WS only.
 
 ## First things to do on a new machine
 
-1. `npm install` then `npm run build` (tsc) and `npm test` — expect 285 passing, ~86% coverage.
-2. `docker compose up -d --build` — the `config/` directory must be restored from backup (it IS the deployment state).
-3. Agents: restart both per the topology above; they self-adopt server config from `welcome`/`config-update`.
-4. **Manual (one-time, needs sudo on the node)** — the clock apply path requires the sudoers-scoped helper. From the dashboard: `PUT /api/power/clocks/:sparkId` stores the desire, but the agent can only apply after installing the helper. Generate instructions: dispatch job kind `clock-install` (job `argv` embeds them), or run on the node:
-   ```bash
-   # helper (from server/src/power/helper.ts CLOCK_HELPER_SCRIPT) → /usr/local/bin/cc-clock (0755)
-   echo '<user> ALL=(root) NOPASSWD: /usr/local/bin/cc-clock' | sudo tee /etc/sudoers.d/cc-clock
-   sudo chmod 0440 /etc/sudoers.d/cc-clock
-   ```
-   (sudoers is validated via `visudo -cf` by the automated installer when passwordless sudo exists.)
-5. Verify: `curl :5566/api/health`, `/api/nodes`, `/ws` shows both DGXs `consistent`, `/api/power/energy` counts real watts.
+1. `npm install` then `npm run build` (tsc) and `npm run test:coverage` — expect **305 passing, ~84 % lines**.
+2. `npm run test:e2e` (Playwright; boots its own fake-fleet API + Vite on scratch ports 5599/5199).
+3. `docker compose up -d --build` — restore `config/` from backup for existing state, or seed `config/nodes.json` fresh (see README quickstart; `createdAt` is required).
+4. Agents: start both per the topology above; they self-adopt server config from `welcome`/`config-update`.
+5. **Manual (one-time, needs sudo on the node)** — clock apply requires the `cc-clock` helper + sudoers entry; instructions in RUNBOOKS.md and `docs/DEVELOPMENT_STATUS.md` history.
+6. Continue with **M8 Chat UI** (next task: server chat store), then the release tag.
 
-## Conventions
+## Ops notes learned the hard way
 
-- Commits: `git -c core.hooksPath=.githooks commit` (never bare commit). Task IDs `CC-<n>`; roadmap = PLAN.md M0–M8.
-- Every task: build + `npm run test:coverage` (c8 ≥75% lines, CI-enforced) + `.agentic/bin/validate` before committing.
-- Real verification is mandatory for gate claims — docker compose + curl against the live fleet.
-- Port 5566 everywhere (5555 banned). Sudoers is scoped to exactly `/usr/local/bin/cc-clock`; CPU caps must write `scaling_max_freq` (writing `max_perf` reverts on GB10 — verified).
-- Test seams in `buildApp({...})` make every adapter injectable; recipes stay user-owned (ADR-0005 — never generate serve commands).
+- `pkill -f <pattern>` over SSH **self-matches the remote shell** when the pattern appears in the same command line — split kill and start into separate SSH invocations, or use a regex-class trick (`cc-gate[-]home/agent`).
+- `nohup … &` over SSH keeps the session open (holds the channel); use `setsid sh -c 'exec … < /dev/null' & disown`.
+- Long-running LLM boots: vLLM on GB10 (sm_121) pays a one-time JIT/autotune cost (~4 min); mount a cache volume into the container to keep warm boots ~40 s.
+- Check `docker ps -a` and unified-memory pressure on a node before blaming the supervisor when a deployment fails to start — a stale TP=2 worker can hold >100 GiB.
