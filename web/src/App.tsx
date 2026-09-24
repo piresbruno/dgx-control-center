@@ -94,6 +94,8 @@ export function App() {
             <button
               key={item.id}
               className={page === item.id ? "nav-item active" : "nav-item"}
+              data-testid={`nav-${item.id}`}
+              data-testid={`nav-${item.id}`}
               onClick={() => navigate(item.id!)}
             >
               {item.label}
@@ -129,12 +131,7 @@ export function App() {
           {page === "energy" && <EnergyPage />}
           {page === "alerts" && <AlertsPage />}
           {page === "fleet" && <FleetExplorerPage />}
-          {page === "alerts" && (
-            <div className="panel"><div className="panel-body"><div className="empty">Alerts ship at M6 — see PLAN.md F5a.</div></div></div>
-          )}
-          {page === "settings" && (
-            <div className="panel"><div className="panel-body"><div className="empty">Settings land across M4–M7.</div></div></div>
-          )}
+          {page === "settings" && <SettingsPage />}
         </div>
       </div>
     </div>

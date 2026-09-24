@@ -6,7 +6,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": "http://127.0.0.1:5566",
+      "/api": process.env.CC_API_TARGET ?? "http://127.0.0.1:5566",
+      "/ws": { target: process.env.CC_API_TARGET ?? "http://127.0.0.1:5566", ws: true },
     },
   },
 });
