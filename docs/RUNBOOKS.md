@@ -64,3 +64,22 @@ Goal: healthy agent on every DGX, `Restart=always`, watchdog enabled.
 2. `docker compose up -d --build`; verify `/api/health` + both agents `consistent` within 2 min.
 3. Reinstall modelctl on nodes if missing: `GET /api/nodes/:id/modelctl-check`, then `POST /api/nodes/:id/provision-modelctl`.
 4. M7 gate target: dashboard restart → healthy fleet → first gateway request in under 30 minutes.
+
+## 10. Dashboard host in an LXC (Proxmox)
+
+The dashboard needs **no GPU, no privileged capabilities and no kernel modules** — the image is `node:22-bookworm-slim` + `openssh-client`, and every GPU-bound action (serving, clocks, metrics) happens on the nodes through their agents. An unprivileged LXC is therefore a supported deployment host.
+
+1. **Container** — Debian/Ubuntu template, unprivileged, with Docker nesting enabled:
+   `pct set <id> --features nesting=1,keyctl=1` (rootless or privileged variants also work).
+2. **Model store (read-only)** — bind a host path or mount NFS/SMB inside the container so `/mnt/nas` exists:
+   `pct set <id> -mp0 /tank/nas,mp=/mnt/nas,ro=1`.
+3. **modelctl on the dashboard host** — the NAS catalog (`GET /api/models`) runs `modelctl list --json` locally, and the uv tool has an absolute interpreter shebang, so it must exist at the same absolute path inside the container:
+   `curl -LsSf https://astral.sh/uv/install.sh | sh && uv tool install git+https://github.com/piresbruno/modelctl`.
+   The compose file mounts `${CC_HOME:-$HOME}/...` for modelctl, uv, `.config/modelctl` and `.ssh` — set `CC_HOME` when the deploying user differs from the modelctl owner.
+4. **SSH** — `~/.ssh/id_ed25519` with access to the nodes (bootstrap/repair + node inventories); compose passes it as `CC_SSH_IDENTITY`.
+5. **Durable state** — keep `./config` (SQLite + `nodes.json` + JSON stores, ADR-0003) on a Proxmox bind mount or a ZFS dataset so container rebuilds and app updates preserve it.
+6. **Networking** — agents dial the dashboard, so give the LXC a stable address and set each `~/.controlcenter/agent/config.json` → `dashboardUrl` to it, then restart the agents. Tailscale inside an LXC additionally needs the TUN device:
+   `lxc.cgroup2.devices.allow: c 10:200 rwm` + `lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file`.
+7. **Bring it up and verify** — `mkdir -p config && cp -r <backup>/config/* config/` (or seed `config/nodes.json`, see README), `docker compose up -d --build`, `curl localhost:5566/api/health`, then confirm the nodes show `consistent` on the Overview page.
+
+Not part of the LXC: GPU/clock actuation (agent-side, needs the sudoers helper on the DGX), serving engines, and model downloads (nodes run those jobs). SSH from the LXC to the nodes is required for agent install/repair.
