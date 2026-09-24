@@ -1,5 +1,5 @@
 /** Single source of truth for versions across server, agent and web. */
-export const VERSION = "0.1.0";
+export const VERSION = "1.0.0";
 
 /** Agent protocol version — bumped on breaking WS message changes. */
 export const PROTOCOL_VERSION = 1;

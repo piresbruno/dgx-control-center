@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-24
+
 ### Added
 
 - **Chat UI (M8)** — chat store in SQLite (folders, conversations, messages, image attachments), SSE completions proxy over the served-models router (recorded as the `dashboard-chat` client), folders whose description is injected as project context into every turn, vision-capable model gate for attachments, and a Chat page with streaming markdown, attachment previews and per-turn telemetry (TTFT, tokens). Chat traffic streams through the same router/traces as any gateway client.

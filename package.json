@@ -1,6 +1,6 @@
 {
   "name": "controlcenter",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Control plane for a home LocalAI infrastructure: DGX Spark cluster + NAS model store, recipe-based serving, OpenAI-compatible gateway with per-client telemetry, and power management.",
