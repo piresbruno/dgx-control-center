@@ -24,6 +24,8 @@ import { AlertsStore } from "./stores/alertsStore.js";
 import { AlertRulesStore } from "./alerts/rules.js";
 import { AlertEngine, type EngineSample } from "./alerts/engine.js";
 import { AlertDelivery, WebhookStore } from "./alerts/delivery.js";
+import { SettingsStore } from "./hardening/settings.js";
+import { runMaintenance } from "./hardening/maintenance.js";
 import { flattenNumbers } from "./stores/metricsStore.js";
 import { ClockProfileStore } from "./power/clockStore.js";
 import { ThermalGuard } from "./power/thermal.js";
@@ -122,6 +124,26 @@ setInterval(() => {
   );
 }, 15_000);
 
+// ── Maintenance (M7): retention + WAL checkpoint at boot and hourly ──
+const maintain = (): void => {
+  try {
+    const report = runMaintenance({
+      db,
+      metrics: metricsStore,
+      traces: tracesStore,
+      configDir: "config",
+      settings: () => settingsStore.get(),
+    });
+    console.log(
+      `[maintenance] metrics=${JSON.stringify(report.metricsPruned)} traces=${report.tracesPruned} backupsDeleted=${report.backupsDeleted.length} checkpoint=done`,
+    );
+  } catch (err) {
+    console.error("[maintenance] failed:", err instanceof Error ? err.message : err);
+  }
+};
+maintain();
+setInterval(maintain, 3_600_000);
+
 // ── Alert evaluation (M6/F5a): 1-minute-ish tick over the live pipeline ──
 setInterval(() => {
   const snap = liveState.snapshot();
@@ -155,7 +177,9 @@ const clockStore = new ClockProfileStore({ filePath: "config/clock-profiles.json
 const scheduleStore = new ScheduleStore({ filePath: "config/clock-schedules.json" });
 const alertsStore = new AlertsStore({ db });
 const alertRulesStore = new AlertRulesStore({ filePath: "config/alert-rules.json", seed: true });
+const settingsStore = new SettingsStore({ filePath: "config/settings.json" });
 const traceQueries = new TraceQueries(db);
+const tracesStore = new TracesStore({ db });
 const alertEngine = new AlertEngine({ alerts: alertsStore }, () => alertRulesStore.list());
 const wsAlertSenders = new Set<(msg: unknown) => void>();
 const alertDelivery = new AlertDelivery({
@@ -185,7 +209,8 @@ const app = buildApp({
   alertRulesStore,
   systemDb: db,
   configDir: "config",
-  tracesStore: new TracesStore({ db }),
+  settingsStore,
+  tracesStore: tracesStore,
   traceQueries,
   upstreamAuth: env.CC_UPSTREAM_AUTH ?? null,
   sshIdentity: env.CC_SSH_IDENTITY,

@@ -759,3 +759,26 @@ describe("system export/import/backup API (M7)", () => {
     await app.close();
   });
 });
+
+describe("system settings + maintenance API (M7)", () => {
+  it("patches settings and runs maintenance on demand", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-maint-api-"));
+    const db = (await import("./stores/db.js")).openDb(join(dir, "cc.db"), 0);
+    const { SettingsStore } = await import("./hardening/settings.js");
+    const settings = new SettingsStore({ filePath: join(dir, "settings.json") });
+    await (await import("node:fs/promises")).writeFile(join(dir, "nodes.json"), JSON.stringify([{ id: "dgx1", kind: "spark" }]));
+    const app = buildApp({ systemDb: db, configDir: dir, settingsStore: settings, metricsStore: new (await import("./stores/metricsStore.js")).MetricsStore(db), tracesStore: new (await import("./stores/tracesStore.js")).TracesStore({ db }) });
+
+    const get = await app.inject({ method: "GET", url: "/api/system/settings" });
+    expect(get.json()).toMatchObject({ retention: { tracesDays: 7 } });
+    const patch = await app.inject({ method: "PATCH", url: "/api/system/settings", payload: { retention: { tracesDays: 2 } } });
+    expect(patch.json().retention.tracesDays).toBe(2);
+
+    const run = await app.inject({ method: "POST", url: "/api/system/maintenance" });
+    expect(run.json()).toMatchObject({ checkpoint: "done" });
+    expect(run.json().metricsPruned).toBeDefined();
+    const last = await app.inject({ method: "GET", url: "/api/system/maintenance" });
+    expect(last.json().last.checkpoint).toBe("done");
+    await app.close();
+  });
+});

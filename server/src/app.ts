@@ -22,6 +22,8 @@ import { AlertsStore } from "./stores/alertsStore.js";
 import { AlertRulesStore } from "./alerts/rules.js";
 import { AlertEngine } from "./alerts/engine.js";
 import { collectConfig, importConfig, createBackup, listBackups } from "./hardening/backup.js";
+import { runMaintenance, type MaintenanceReport } from "./hardening/maintenance.js";
+import type { SettingsStore } from "./hardening/settings.js";
 import { RequestRecorder } from "./gateway/recorder.js";
 import { OnDemandManager } from "./gateway/onDemand.js";
 import { CLOCK_PROFILES, profileById, resolveProfile } from "./power/profiles.js";
@@ -106,6 +108,7 @@ export interface AppOptions {
   /** Hardening (M7): system backup/export surface. */
   systemDb?: import("better-sqlite3").Database;
   configDir?: string;
+  settingsStore?: SettingsStore;
 }
 
 /**
@@ -205,6 +208,24 @@ if (alertsStore && alertRulesStore) {
     });
     app.post("/api/system/backup", async () => createBackup(configDir, systemDb));
     app.get("/api/system/backups", async () => ({ backups: listBackups(configDir) }));
+
+    const settingsStore = opts.settingsStore;
+    let lastMaintenance: MaintenanceReport | null = null;
+    app.get("/api/system/settings", async () => settingsStore?.get() ?? null);
+    app.patch("/api/system/settings", async (request, reply) => {
+      const body = request.body as Record<string, never> | null;
+      if (!settingsStore) return reply.code(503).send({ error: "settings store unavailable" });
+      return settingsStore.patch(body ?? {});
+    });
+    app.get("/api/system/maintenance", async () => ({ last: lastMaintenance }));
+    app.post("/api/system/maintenance", async (_request, reply) => {
+      if (!settingsStore) return reply.code(503).send({ error: "settings store unavailable" });
+      const tracesStore = opts.tracesStore;
+      const metricsStore = opts.metricsStore;
+      if (!tracesStore || !metricsStore) return reply.code(503).send({ error: "stores unavailable" });
+      lastMaintenance = runMaintenance({ db: systemDb, metrics: metricsStore, traces: tracesStore, configDir, settings: () => settingsStore.get() });
+      return lastMaintenance;
+    });
   }
 
   const nodeDirectory = opts.nodeDirectory;
