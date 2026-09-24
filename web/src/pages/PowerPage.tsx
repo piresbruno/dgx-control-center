@@ -93,6 +93,7 @@ export function PowerCard({ sparkId }: { sparkId: string }) {
 export function EnergyPage() {
   const [summary, setSummary] = useState<EnergySummary | null>(null);
   const [windowHours, setWindowHours] = useState(168);
+  const [bucket, setBucket] = useState<"hourly" | "daily" | "monthly">("hourly");
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -173,21 +174,30 @@ export function EnergyPage() {
       </section>
 
       <section className="panel">
-        <div className="panel-head"><h3>Hourly rollup</h3></div>
+        <div className="panel-head">
+          <h3>Rollup</h3>
+          <div style={{ display: "flex", gap: 6 }}>
+            {(["hourly", "daily", "monthly"] as const).map((b) => (
+              <button key={b} className={`btn sm ${bucket === b ? "primary" : ""}`} onClick={() => setBucket(b)} data-testid={`bucket-${b}`}>
+                {b}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="panel-body flush" style={{ overflowX: "auto", maxHeight: 380 }}>
-          <table className="table" data-testid="energy-hourly">
-            <thead><tr><th>hour (UTC)</th><th>node</th><th>kWh</th><th>cost</th><th>minutes</th></tr></thead>
+          <table className="table" data-testid="energy-rollup">
+            <thead><tr><th>bucket (UTC)</th><th>node</th><th>kWh</th><th>cost</th><th>minutes</th></tr></thead>
             <tbody>
-              {(summary?.hourly ?? []).slice(-72).reverse().map((h) => (
+              {(summary?.[bucket] ?? []).slice(-200).reverse().map((h) => (
                 <tr key={`${h.nodeId}-${h.bucket}`}>
-                  <td>{new Date(h.bucket).toISOString().slice(5, 13).replace("T", " ")}:00</td>
+                  <td>{new Date(h.bucket).toISOString().slice(0, bucket === "hourly" ? 13 : 10).replace("T", " ")}{bucket === "hourly" ? ":00" : ""}</td>
                   <td>{h.nodeId}</td>
                   <td>{h.kwh.toFixed(3)}</td>
                   <td>{h.cost.toFixed(3)}</td>
                   <td>{h.minutes}</td>
                 </tr>
               ))}
-              {summary && summary.hourly.length === 0 && <tr><td colSpan={5} className="hint">No samples.</td></tr>}
+              {summary && (summary[bucket] ?? []).length === 0 && <tr><td colSpan={5} className="hint">No samples.</td></tr>}
             </tbody>
           </table>
         </div>

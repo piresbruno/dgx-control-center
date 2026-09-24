@@ -98,6 +98,8 @@ export interface AppOptions {
   /** Alerting (M6): stores + engine. When set, /api/alerts routes go live. */
   alertsStore?: AlertsStore;
   alertRulesStore?: AlertRulesStore;
+  /** Fleet metric series (M6): query over the rollup tables. */
+  metricsStore?: import("./stores/metricsStore.js").MetricsStore;
   /** Gateway 5xx %% over the rule window for the fleet-level source. */
   gateway5xxPct?: () => number | null;
 }
@@ -524,7 +526,37 @@ if (alertsStore && alertRulesStore) {
       return reply.send();
     });
 
-    // ── Gateway /v1 + analysis surface (M4) ──
+      // ── Fleet metric series (M6): rollup query with auto granularity ──
+  const metricsStore = opts.metricsStore;
+  if (metricsStore) {
+    app.get("/api/metrics/fleet", async (request) => {
+      const q = request.query as { domain?: string; leaf?: string; hours?: string; node?: string };
+      const domain = q.domain ?? "gpu";
+      const hours = Math.max(1, Number(q.hours ?? "24"));
+      const granularity = hours <= 6 ? "1m" : hours <= 24 * 30 ? "1h" : "1d";
+      const from = Date.now() - hours * 3_600_000;
+      const rows = metricsStore.query(domain, { from, to: Date.now(), granularity, node: q.node || undefined });
+      const leaf = q.leaf;
+      const perNode = new Map<string, Array<{ t: number; v: number }>>();
+      for (const r of rows) {
+        const series = perNode.get(r.nodeId) ?? [];
+        const candidates = leaf
+          ? [r.data.avg[leaf]]
+          : Object.values(r.data.avg).filter((v) => typeof v === "number");
+        const v = candidates.find((x) => typeof x === "number") ?? null;
+        if (v != null) series.push({ t: r.bucket, v });
+        perNode.set(r.nodeId, series);
+      }
+      return {
+        domain,
+        granularity,
+        hours,
+        series: [...perNode.entries()].map(([nodeId, points]) => ({ nodeId, points })),
+      };
+    });
+  }
+
+// ── Gateway /v1 + analysis surface (M4) ──
     const servedModelsStore = opts.servedModelsStore;
     const clientsStore = opts.clientsStore;
     const traces = opts.tracesStore;

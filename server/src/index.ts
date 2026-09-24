@@ -175,6 +175,7 @@ const app = buildApp({
   thermalGuard: thermal,
   scheduleStore,
   energyStore: new EnergyStore(db, { kwhCost: env.CC_KWH_COST }),
+  metricsStore: metricsStore,
   alertsStore,
   alertRulesStore,
   tracesStore: new TracesStore({ db }),
