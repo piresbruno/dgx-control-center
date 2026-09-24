@@ -22,6 +22,7 @@ import { AlertsStore } from "./stores/alertsStore.js";
 import { AlertRulesStore } from "./alerts/rules.js";
 import { AlertEngine } from "./alerts/engine.js";
 import { collectConfig, importConfig, createBackup, listBackups } from "./hardening/backup.js";
+import { collectRoutes, buildOpenApi } from "./openapi.js";
 import { runMaintenance, type MaintenanceReport } from "./hardening/maintenance.js";
 import type { SettingsStore } from "./hardening/settings.js";
 import { RequestRecorder } from "./gateway/recorder.js";
@@ -117,6 +118,9 @@ export interface AppOptions {
  */
 export function buildApp(opts: AppOptions = {}) {
   const app = Fastify({ logger: opts.logger ?? false });
+  const apiRoutes = collectRoutes(app);
+
+  app.get("/api/openapi.json", async () => buildOpenApi(apiRoutes));
 
   app.get("/api/health", async () => ({
     ok: true,
