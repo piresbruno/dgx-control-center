@@ -159,6 +159,16 @@ export function registerChatRoutes(app: FastifyInstance, deps: ChatRouteDeps): v
     return { removed: true };
   });
 
+  // ── models (picker data for the chat UI) ───────────────────────────────
+  app.get("/api/chat/models", async () => ({
+    models: deps.servedModels.list().map((m) => ({
+      alias: m.alias,
+      vision: m.vision === true,
+      targets: m.targets,
+      onDemand: Boolean(m.onDemand),
+    })),
+  }));
+
   // ── attachments ────────────────────────────────────────────────────────
   app.get("/api/chat/attachments/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -195,6 +205,17 @@ export function registerChatRoutes(app: FastifyInstance, deps: ChatRouteDeps): v
     for (const attachment of incoming) {
       if (!(attachment.mime ?? "").startsWith("image/")) {
         return reply.code(400).send({ error: "only image attachments are supported" });
+      }
+    }
+    // Vision routing: images only go to aliases explicitly marked vision-capable.
+    if (incoming.length > 0) {
+      const aliases = deps.servedModels.list();
+      const target = aliases.find((m) => m.alias === conversation.model);
+      if (target?.vision !== true) {
+        return reply.code(400).send({
+          error: `model '${conversation.model}' is not marked vision-capable`,
+          visionAliases: aliases.filter((m) => m.vision === true).map((m) => m.alias),
+        });
       }
     }
 

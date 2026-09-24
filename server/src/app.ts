@@ -691,7 +691,7 @@ if (alertsStore && alertRulesStore) {
       // Router editor surface.
       app.get("/api/gateway/served-models", async () => ({ models: servedModelsStore.list() }));
       app.post("/api/gateway/served-models", async (request, reply) => {
-        const body = request.body as { id?: string; alias?: string; targets?: ServedModelTarget[]; onDemand?: { recipeId: string; idleStopS?: number } | null } | null;
+        const body = request.body as { id?: string; alias?: string; targets?: ServedModelTarget[]; onDemand?: { recipeId: string; idleStopS?: number } | null; vision?: boolean } | null;
         if (!body?.alias) return reply.code(400).send({ error: "alias is required" });
         try {
           const rec = servedModelsStore.upsert({
@@ -699,6 +699,7 @@ if (alertsStore && alertRulesStore) {
             alias: body.alias,
             targets: body.targets ?? [],
             onDemand: body.onDemand ?? null,
+            ...(body.vision !== undefined ? { vision: body.vision } : {}),
           });
           return reply.code(201).send(rec);
         } catch (err) {

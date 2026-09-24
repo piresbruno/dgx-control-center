@@ -26,6 +26,8 @@ export interface ServedModelConfig {
   targets: ServedModelTarget[];
   /** Router-managed (llama-swap parity): spin up on first request, stop on idle. */
   onDemand?: { recipeId: string; idleStopS?: number | null } | null;
+  /** Vision-capable upstream: chat attachments route here. */
+  vision?: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -111,6 +113,7 @@ const configSchema = z.object({
   alias: z.string().min(1).max(120),
   targets: z.array(targetSchema).default([]),
   onDemand: z.object({ recipeId: z.string().min(1), idleStopS: z.number().int().min(5).nullable().default(null) }).nullable().default(null),
+  vision: z.boolean().default(false),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
@@ -175,6 +178,7 @@ export class ServedModelsStore {
     alias: string;
     targets: ServedModelTarget[];
     onDemand?: { recipeId: string; idleStopS?: number | null } | null;
+    vision?: boolean;
   }): ServedModelRecord {
     const aliasTaken = [...this.models.values()].find((m) => m.alias === input.alias && m.id !== input.id);
     if (aliasTaken) throw new Error(`alias already served by ${aliasTaken.id}`);
@@ -185,6 +189,7 @@ export class ServedModelsStore {
       alias: input.alias,
       targets: input.targets.map((t) => ({ nodeId: t.nodeId, port: t.port, modelId: t.modelId ?? null })),
       onDemand: input.onDemand ? { recipeId: input.onDemand.recipeId, idleStopS: input.onDemand.idleStopS ?? null } : null,
+      vision: input.vision ?? existing?.vision ?? false,
       createdAt: existing?.createdAt ?? this.now(),
       updatedAt: this.now(),
     };

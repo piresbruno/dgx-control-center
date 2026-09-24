@@ -15,7 +15,7 @@ import { ChatStore } from "./store.js";
 const closers: Array<() => void> = [];
 afterAll(() => closers.forEach((close) => close()));
 
-async function chatApp(engineMode: "sse" | "json" = "sse") {
+async function chatApp(engineMode: "sse" | "json" = "sse", opts: { vision?: boolean } = {}) {
   const seen: Array<Record<string, unknown>> = [];
   const engine: Server = createServer((req, res) => {
     let raw = "";
@@ -42,7 +42,9 @@ async function chatApp(engineMode: "sse" | "json" = "sse") {
   const dir = new NodeDirectory({ file: join(tmp, "nodes.json") });
   await dir.upsert({ id: "dgx1", name: "dgx-1", kind: "spark", role: "head", lanIp: "127.0.0.1", sshUser: "u" });
   const served = new ServedModelsStore({ filePath: join(tmp, "sm.json") });
-  served.upsert({ alias: "glm", targets: [{ nodeId: "dgx1", port }] });
+  const vision = opts.vision !== false;
+  served.upsert({ alias: "glm", targets: [{ nodeId: "dgx1", port }], vision });
+  if (!vision) served.upsert({ alias: "glm-vision", targets: [{ nodeId: "dgx1", port }], vision: true });
   const chatStore = new ChatStore({ db });
   const traces = new TracesStore({ db });
   const app = buildApp({
@@ -242,6 +244,50 @@ describe("chat REST surface", () => {
     const replay = seen.at(-1)! as { messages: Array<{ role: string; content: unknown }> };
     expect(replay.messages[1]).toMatchObject({ role: "user" });
     expect(Array.isArray((replay.messages[1] as { content: unknown[] }).content)).toBe(true);
+  });
+
+  it("routes images only to vision-capable aliases and reports capability for the picker", async () => {
+    const { base } = await chatApp("sse", { vision: false });
+    const models = (await json(await fetch(`${base}/api/chat/models`))) as {
+      models: Array<{ alias: string; vision: boolean }>;
+    };
+    expect(models.models).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ alias: "glm", vision: false }),
+        expect.objectContaining({ alias: "glm-vision", vision: true }),
+      ]),
+    );
+
+    const conv = (await json(
+      await fetch(`${base}/api/chat/conversations`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ model: "glm" }),
+      }),
+    )) as { id: string };
+    const png = { name: "s.png", mime: "image/png", dataBase64: Buffer.from([1, 2]).toString("base64") };
+
+    const refused = await fetch(`${base}/api/chat/conversations/${conv.id}/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: "look", attachments: [png] }),
+    });
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toMatchObject({ visionAliases: ["glm-vision"] });
+
+    // Switching the conversation to the vision alias lets the image through.
+    await fetch(`${base}/api/chat/conversations/${conv.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model: "glm-vision" }),
+    });
+    const accepted = await fetch(`${base}/api/chat/conversations/${conv.id}/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: "look", attachments: [png] }),
+    });
+    expect(accepted.status).toBe(200);
+    await accepted.text();
   });
 
   it("rejects non-image and oversized attachments and unknown conversations", async () => {

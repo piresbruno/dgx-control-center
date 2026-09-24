@@ -91,6 +91,19 @@ describe("ServedModelsStore", () => {
     expect(reloaded.list()).toHaveLength(1);
   });
 
+  it("defaults vision to false and keeps the flag across updates and reloads", async () => {
+    const file = join(await mkdtemp(join(tmpdir(), "cc-sm-")), "served-models.json");
+    const s = new ServedModelsStore({ filePath: file, now: () => 1_000 });
+    const plain = s.upsert({ alias: "text-only", targets: [] });
+    expect(plain.vision).toBe(false);
+    const vision = s.upsert({ alias: "sees", targets: [T("dgx1", 8080)], vision: true });
+    expect(vision.vision).toBe(true);
+    // Updates without the field preserve the stored value.
+    const retargeted = s.upsert({ id: vision.id, alias: "sees", targets: [T("dgx2", 8080)] });
+    expect(retargeted.vision).toBe(true);
+    expect(new ServedModelsStore({ filePath: file }).byAlias("sees")?.vision).toBe(true);
+  });
+
   it("removes records", async () => {
     const s = await store();
     const m = s.upsert({ alias: "a", targets: [] });
