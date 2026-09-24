@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { buildApplyScript, buildClockStatusCommand, buildInstallClockScript } from "../power/helper.js";
+import { buildFabricProbeCommand } from "../fleet/fabric.js";
+import { benchParamsSchema, buildBenchScript } from "../bench/bench.js";
 
 /**
  * Server-side job command registry: REST clients name a KIND + params; the
@@ -36,6 +38,9 @@ export const jobParamsSchemas = {
     })
     .strict()
     .refine((v) => v.gpuMaxMhz != null || v.cpuMaxMhz != null, "at least one cap required"),
+  "fabric-probe": z.object({}).strict().default({}),
+  "bench-decode": benchParamsSchema.strict(),
+  "bench-prefill": benchParamsSchema.strict(),
 } as const;
 
 export type JobKind = keyof typeof jobParamsSchemas;
@@ -65,6 +70,12 @@ export function jobArgv(kind: string, params: unknown = {}): string[] | null {
       return ["modelctl", "delete-local", p.model!];
     case "clock-status":
       return ["bash", "-c", buildClockStatusCommand()];
+    case "fabric-probe":
+      return ["bash", "-c", buildFabricProbeCommand()];
+    case "bench-decode":
+      return ["bash", "-c", buildBenchScript("decode", benchParamsSchema.parse(p))];
+    case "bench-prefill":
+      return ["bash", "-c", buildBenchScript("prefill", benchParamsSchema.parse(p))];
     case "clock-install":
       return ["bash", "-c", buildInstallClockScript(p.user!)];
     case "clock-apply": {
