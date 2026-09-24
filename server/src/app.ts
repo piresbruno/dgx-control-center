@@ -21,6 +21,7 @@ import { TraceQueries } from "./stores/traceQueries.js";
 import { AlertsStore } from "./stores/alertsStore.js";
 import { AlertRulesStore } from "./alerts/rules.js";
 import { AlertEngine } from "./alerts/engine.js";
+import { collectConfig, importConfig, createBackup, listBackups } from "./hardening/backup.js";
 import { RequestRecorder } from "./gateway/recorder.js";
 import { OnDemandManager } from "./gateway/onDemand.js";
 import { CLOCK_PROFILES, profileById, resolveProfile } from "./power/profiles.js";
@@ -102,6 +103,9 @@ export interface AppOptions {
   metricsStore?: import("./stores/metricsStore.js").MetricsStore;
   /** Gateway 5xx %% over the rule window for the fleet-level source. */
   gateway5xxPct?: () => number | null;
+  /** Hardening (M7): system backup/export surface. */
+  systemDb?: import("better-sqlite3").Database;
+  configDir?: string;
 }
 
 /**
@@ -188,6 +192,20 @@ if (alertsStore && alertRulesStore) {
   });
 }
 
+
+      // ── System export/import/backup (M7) ──
+  const configDir = opts.configDir ?? "config";
+  const systemDb = opts.systemDb;
+  if (systemDb) {
+    app.get("/api/system/export", async () => collectConfig(configDir));
+    app.post("/api/system/import", async (request, reply) => {
+      const result = importConfig(configDir, request.body);
+      if ("error" in result) return reply.code(400).send({ error: result.error });
+      return reply.code(202).send(result); // takes effect on restart
+    });
+    app.post("/api/system/backup", async () => createBackup(configDir, systemDb));
+    app.get("/api/system/backups", async () => ({ backups: listBackups(configDir) }));
+  }
 
   const nodeDirectory = opts.nodeDirectory;
   if (nodeDirectory) {
@@ -526,7 +544,7 @@ if (alertsStore && alertRulesStore) {
       return reply.send();
     });
 
-      // ── Fleet metric series (M6): rollup query with auto granularity ──
+  // ── Fleet metric series (M6): rollup query with auto granularity ──
   const metricsStore = opts.metricsStore;
   if (metricsStore) {
     app.get("/api/metrics/fleet", async (request) => {

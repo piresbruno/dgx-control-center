@@ -183,6 +183,8 @@ const app = buildApp({
   metricsStore: metricsStore,
   alertsStore,
   alertRulesStore,
+  systemDb: db,
+  configDir: "config",
   tracesStore: new TracesStore({ db }),
   traceQueries,
   upstreamAuth: env.CC_UPSTREAM_AUTH ?? null,

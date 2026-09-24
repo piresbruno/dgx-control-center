@@ -731,3 +731,31 @@ describe("alerts API (M6)", () => {
     await app.close();
   });
 });
+
+describe("system export/import/backup API (M7)", () => {
+  it("exports config, imports it back (202), and creates listable backups", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-sys-"));
+    const db = (await import("./stores/db.js")).openDb(join(dir, "cc.db"), 0);
+    await (await import("node:fs/promises")).writeFile(join(dir, "nodes.json"), JSON.stringify([{ id: "dgx1", kind: "spark" }]));
+    const app = buildApp({ systemDb: db, configDir: dir });
+
+    const exported = await app.inject({ method: "GET", url: "/api/system/export" });
+    expect(exported.json().kind).toBe("controlcenter-config-export");
+    expect(exported.json().files["nodes.json"]).toEqual([{ id: "dgx1", kind: "spark" }]);
+
+    const manifest = exported.json();
+    manifest.files["nodes.json"] = [{ id: "dgx2", kind: "spark" }];
+    const imp = await app.inject({ method: "POST", url: "/api/system/import", payload: manifest });
+    expect(imp.statusCode).toBe(202);
+    expect(imp.json().restartRequired).toBe(true);
+    const bad = await app.inject({ method: "POST", url: "/api/system/import", payload: { kind: "nope" } });
+    expect(bad.statusCode).toBe(400);
+
+    const backup = await app.inject({ method: "POST", url: "/api/system/backup" });
+    expect(backup.json().files).toContain("nodes.json");
+    expect(backup.json().dbBytes).toBeGreaterThan(0);
+    const listed = await app.inject({ method: "GET", url: "/api/system/backups" });
+    expect(listed.json().backups).toHaveLength(1);
+    await app.close();
+  });
+});
