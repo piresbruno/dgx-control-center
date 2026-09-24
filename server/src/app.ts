@@ -18,6 +18,9 @@ import { ClientsStore } from "./gateway/clients.js";
 import { handleGatewayRequest, healthFromState } from "./gateway/gateway.js";
 import { TracesStore } from "./stores/tracesStore.js";
 import { TraceQueries } from "./stores/traceQueries.js";
+import { AlertsStore } from "./stores/alertsStore.js";
+import { AlertRulesStore } from "./alerts/rules.js";
+import { AlertEngine } from "./alerts/engine.js";
 import { RequestRecorder } from "./gateway/recorder.js";
 import { OnDemandManager } from "./gateway/onDemand.js";
 import { CLOCK_PROFILES, profileById, resolveProfile } from "./power/profiles.js";
@@ -92,6 +95,11 @@ export interface AppOptions {
   scheduleStore?: ScheduleStore;
   /** Energy accounting (M5). */
   energyStore?: import("./stores/energyStore.js").EnergyStore;
+  /** Alerting (M6): stores + engine. When set, /api/alerts routes go live. */
+  alertsStore?: AlertsStore;
+  alertRulesStore?: AlertRulesStore;
+  /** Gateway 5xx %% over the rule window for the fleet-level source. */
+  gateway5xxPct?: () => number | null;
 }
 
 /**
@@ -111,6 +119,73 @@ export function buildApp(opts: AppOptions = {}) {
   if (opts.agentHubDeps) {
     app.decorate("agentRegistry", registerAgentHub(app, opts.agentHubDeps));
   }
+
+
+// ── Alerting (M6/F5a) ──
+const alertsStore = opts.alertsStore;
+const alertRulesStore = opts.alertRulesStore;
+if (alertsStore && alertRulesStore) {
+  const engine = new AlertEngine({ alerts: alertsStore }, () => alertRulesStore.list());
+  app.decorate("alertEngine", engine);
+
+  app.get("/api/alerts/rules", async () => ({ rules: alertRulesStore.list() }));
+  app.put("/api/alerts/rules/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as Record<string, unknown> | null;
+    if (!body) return reply.code(400).send({ error: "rule body required" });
+    const result = alertRulesStore.upsert({ ...(body as object), id } as never);
+    if ("error" in result) return reply.code(result.error.includes("read-only") ? 409 : 400).send({ error: result.error });
+    return result;
+  });
+  app.delete("/api/alerts/rules/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const result = alertRulesStore.remove(id);
+    if (result === false) return reply.code(404).send({ error: "unknown rule" });
+    if (typeof result === "object") return reply.code(409).send({ error: result.error });
+    return { removed: true };
+  });
+
+  app.get("/api/alerts", async (request) => {
+    const q = request.query as { state?: string; limit?: string };
+    return { alerts: alertsStore.list({ state: q.state as never, limit: q.limit ? Number(q.limit) : undefined }) };
+  });
+  app.get("/api/alerts/events", async (request) => {
+    const q = request.query as { alertId?: string; limit?: string };
+    return { events: alertsStore.events({ alertId: q.alertId, limit: q.limit ? Number(q.limit) : undefined }) };
+  });
+  app.get("/api/alerts/history.csv", async (_request, reply) => {
+    const rows = alertsStore.events({ limit: 5000 });
+    const lines = ["ts,alertId,ruleId,kind,actor,note"];
+    for (const e of rows) lines.push(`${e.ts},${e.alertId},${e.ruleId},${e.kind},${e.actor ?? ""},${(e.note ?? "").replace(/[",\n]/g, " ")}`);
+    reply.header("content-type", "text/csv");
+    return lines.join("\n") + "\n";
+  });
+  app.post("/api/alerts/:id/ack", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as { by?: string } | null;
+    if (!alertsStore.acknowledge(id, body?.by ?? "dashboard")) return reply.code(409).send({ error: "alert not firing" });
+    return { acknowledged: true };
+  });
+  app.post("/api/alerts/:id/resolve", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as { note?: string } | null;
+    if (!alertsStore.resolve(id, body?.note ?? null, false)) return reply.code(409).send({ error: "alert not open" });
+    return { resolved: true };
+  });
+  app.post("/api/alerts/:id/mute", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as { untilMs?: number } | null;
+    if (!body?.untilMs || body.untilMs <= Date.now()) return reply.code(400).send({ error: "untilMs must be in the future" });
+    if (!alertsStore.mute(id, body.untilMs, "dashboard")) return reply.code(404).send({ error: "unknown alert" });
+    return { muted: true };
+  });
+  app.post("/api/alerts/:id/unmute", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    if (!alertsStore.unmute(id)) return reply.code(404).send({ error: "unknown alert" });
+    return { unmuted: true };
+  });
+}
+
 
   const nodeDirectory = opts.nodeDirectory;
   if (nodeDirectory) {

@@ -67,6 +67,37 @@ export const MIGRATIONS: Array<{ version: number; sql: string }> = [
       CREATE INDEX idx_traces_alias ON gateway_traces (alias, ts);
     `,
   },
+  {
+    version: 3,
+    sql: `
+      CREATE TABLE alerts (
+        id          TEXT PRIMARY KEY,
+        rule_id     TEXT NOT NULL,
+        rule_name   TEXT NOT NULL,
+        severity    TEXT NOT NULL,
+        entity      TEXT NOT NULL,
+        detail      TEXT NOT NULL,
+        state       TEXT NOT NULL,
+        fired_at    INTEGER NOT NULL,
+        acked_at    INTEGER,
+        acked_by    TEXT,
+        resolved_at INTEGER,
+        resolved_note TEXT,
+        muted_until INTEGER
+      );
+      CREATE INDEX idx_alerts_state ON alerts (state, fired_at);
+      CREATE TABLE alert_events (
+        id        INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts        INTEGER NOT NULL,
+        alert_id  TEXT NOT NULL,
+        rule_id   TEXT NOT NULL,
+        kind      TEXT NOT NULL,
+        actor     TEXT,
+        note      TEXT
+      );
+      CREATE INDEX idx_alert_events_ts ON alert_events (ts);
+    `,
+  },
 ];
 
 export function openDb(file: string, now: number = Date.now()): Database.Database {

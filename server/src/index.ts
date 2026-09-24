@@ -20,6 +20,11 @@ import { ClientsStore } from "./gateway/clients.js";
 import { TracesStore } from "./stores/tracesStore.js";
 import { TraceQueries } from "./stores/traceQueries.js";
 import { EnergyStore } from "./stores/energyStore.js";
+import { AlertsStore } from "./stores/alertsStore.js";
+import { AlertRulesStore } from "./alerts/rules.js";
+import { AlertEngine, type EngineSample } from "./alerts/engine.js";
+import { AlertDelivery, WebhookStore } from "./alerts/delivery.js";
+import { flattenNumbers } from "./stores/metricsStore.js";
 import { ClockProfileStore } from "./power/clockStore.js";
 import { ThermalGuard } from "./power/thermal.js";
 import { ScheduleStore, activeProfile } from "./power/schedules.js";
@@ -117,6 +122,21 @@ setInterval(() => {
   );
 }, 15_000);
 
+// ── Alert evaluation (M6/F5a): 1-minute-ish tick over the live pipeline ──
+setInterval(() => {
+  const snap = liveState.snapshot();
+  const samples: EngineSample[] = snap.nodes.map((n) => ({
+    sparkId: n.sparkId,
+    reachable: registryRef.current?.isConnected(n.sparkId) ?? false,
+    leaves: flattenNumbers(n.domains),
+    gateway5xxPct: null,
+  }));
+  // Fleet-level 5xx over the last 10 minutes.
+  const k = traceQueries.kpis(Date.now() - 10 * 60_000);
+  const g5xx = k.requests > 0 ? k.errorRate * 100 : null;
+  alertDelivery.deliver(alertEngine.tick(samples.map((s) => ({ ...s, gateway5xxPct: g5xx }))));
+}, 60_000);
+
 const registryRef: { current: AgentRegistry | null } = { current: null };
 const jobsManager = new JobsManager({
   send: (nodeId, msg) => registryRef.current?.send(nodeId, msg) ?? false,
@@ -128,6 +148,17 @@ const clientsStore = new ClientsStore({ filePath: "config/clients.json" });
 const deploymentStore = new DeploymentStore({ filePath: "config/serve-deployments.json" });
 const clockStore = new ClockProfileStore({ filePath: "config/clock-profiles.json" });
 const scheduleStore = new ScheduleStore({ filePath: "config/clock-schedules.json" });
+const alertsStore = new AlertsStore({ db });
+const alertRulesStore = new AlertRulesStore({ filePath: "config/alert-rules.json", seed: true });
+const traceQueries = new TraceQueries(db);
+const alertEngine = new AlertEngine({ alerts: alertsStore }, () => alertRulesStore.list());
+const wsAlertSenders = new Set<(msg: unknown) => void>();
+const alertDelivery = new AlertDelivery({
+  broadcast: (msg) => {
+    for (const send of wsAlertSenders) send(msg);
+  },
+  webhooks: new WebhookStore({ filePath: "config/alert-webhooks.json" }),
+});
 // ClockProfileStore is the UI registry; desired-state.json stays the single
 // reconciler source of truth — desires write through on set.
 const app = buildApp({
@@ -144,8 +175,10 @@ const app = buildApp({
   thermalGuard: thermal,
   scheduleStore,
   energyStore: new EnergyStore(db, { kwhCost: env.CC_KWH_COST }),
+  alertsStore,
+  alertRulesStore,
   tracesStore: new TracesStore({ db }),
-  traceQueries: new TraceQueries(db),
+  traceQueries,
   upstreamAuth: env.CC_UPSTREAM_AUTH ?? null,
   sshIdentity: env.CC_SSH_IDENTITY,
 });
@@ -154,10 +187,18 @@ onDemand?.startSweeper();
 
 
 const hub = registerAgentHub(app, hubDeps, (scope) =>
-  registerBrowserHub(scope, () => liveState.snapshot(), (cb) => {
-    broadcastListeners.add(cb);
-    return () => broadcastListeners.delete(cb);
-  }),
+  registerBrowserHub(
+    scope,
+    () => liveState.snapshot(),
+    (cb) => {
+      broadcastListeners.add(cb);
+      return () => broadcastListeners.delete(cb);
+    },
+    (send) => {
+      wsAlertSenders.add(send);
+      return () => wsAlertSenders.delete(send);
+    },
+  ),
 );
 app.decorate("agentRegistry", hub);
 

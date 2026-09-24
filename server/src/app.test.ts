@@ -689,3 +689,45 @@ describe("energy API (M5)", () => {
     await app.close();
   });
 });
+
+describe("alerts API (M6)", () => {
+  async function alertsApp() {
+    const { AlertsStore } = await import("./stores/alertsStore.js");
+    const { AlertRulesStore } = await import("./alerts/rules.js");
+    const db = (await import("./stores/db.js")).openDb(":memory:", 0);
+    const alertsStore = new AlertsStore({ db, now: () => 1_000 });
+    const rules = new AlertRulesStore({ filePath: join(await mkdtemp(join(tmpdir(), "cc-")), "rules.json"), seed: true });
+    const app = buildApp({ alertsStore, alertRulesStore: rules });
+    return { app, alertsStore, rules };
+  }
+
+  it("CRUDs rules (seed read-only) and manages alert lifecycle over REST", async () => {
+    const { app, alertsStore } = await alertsApp();
+    const rules = await app.inject({ method: "GET", url: "/api/alerts/rules" });
+    expect(rules.json().rules.map((r: { id: string }) => r.id)).toContain("seed-node-down");
+
+    const created = await app.inject({
+      method: "PUT",
+      url: "/api/alerts/rules/u-test",
+      payload: { name: "Custom", severity: "info", enabled: true, condition: { source: "gateway-5xx", op: ">=", value: 5, forMs: 0 } },
+    });
+    expect(created.statusCode).toBe(200);
+
+    const seedEdit = await app.inject({ method: "DELETE", url: "/api/alerts/rules/seed-node-down" });
+    expect(seedEdit.statusCode).toBe(409);
+
+    // Simulate a firing alert, then ack → resolve over REST.
+    const a = alertsStore.insert({ ruleId: "u-test", ruleName: "Custom", severity: "info", entity: "_fleet", detail: "d", state: "firing", firedAt: 1_000 });
+    const ack = await app.inject({ method: "POST", url: `/api/alerts/${a.id}/ack`, payload: { by: "me" } });
+    expect(ack.json()).toEqual({ acknowledged: true });
+    const resolve = await app.inject({ method: "POST", url: `/api/alerts/${a.id}/resolve`, payload: { note: "done" } });
+    expect(resolve.json()).toEqual({ resolved: true });
+    const events = await app.inject({ method: "GET", url: "/api/alerts/events" });
+    expect(events.json().events.map((e: { kind: string }) => e.kind)).toEqual(["resolved", "acknowledged", "fired"]);
+
+    const csv = await app.inject({ method: "GET", url: "/api/alerts/history.csv" });
+    expect(csv.headers["content-type"]).toContain("text/csv");
+    expect((await app.inject({ method: "POST", url: `/api/alerts/${a.id}/resolve`, payload: {} })).statusCode).toBe(409);
+    await app.close();
+  });
+});

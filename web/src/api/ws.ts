@@ -23,17 +23,32 @@ export interface LiveSnapshot {
 
 const RING_SIZE = 60;
 
+export interface AlertToast {
+  id: string;
+  ruleName: string;
+  severity: "info" | "warning" | "critical";
+  entity: string;
+  detail: string;
+  firedAt: number;
+}
+
 export interface UseLiveSnapshot {
   nodes: LiveNode[];
   history: Record<string, Record<string, number[]>>;
   connected: boolean;
+  /** Live alert toasts (newest first); dismiss removes one. */
+  alerts: AlertToast[];
+  dismissAlert(id: string): void;
 }
 
 export function useLiveSnapshot(wsUrl = wsUrlFromLocation()): UseLiveSnapshot {
   const [nodes, setNodes] = useState<LiveNode[]>([]);
   const [connected, setConnected] = useState(false);
+  const [alerts, setAlerts] = useState<AlertToast[]>([]);
   const historyRef = useRef<Record<string, Record<string, number[]>>>({});
   const [, forceTick] = useState(0);
+
+  const dismissAlert = (id: string): void => setAlerts((cur) => cur.filter((a) => a.id !== id));
 
   useEffect(() => {
     let closedByUs = false;
@@ -47,7 +62,11 @@ export function useLiveSnapshot(wsUrl = wsUrlFromLocation()): UseLiveSnapshot {
         retry = null;
       };
       socket.onmessage = (event) => {
-        const frame = JSON.parse(event.data as string) as LiveSnapshot & { type: string };
+        const frame = JSON.parse(event.data as string) as LiveSnapshot & { type: string; alert?: AlertToast };
+        if (frame.type === "alert" && frame.alert) {
+          setAlerts((cur) => [frame.alert!, ...cur.filter((a) => a.id !== frame.alert!.id)].slice(0, 5));
+          return;
+        }
         if (frame.type !== "snapshot") return;
         setNodes(frame.nodes);
         for (const node of frame.nodes) {
@@ -75,7 +94,7 @@ export function useLiveSnapshot(wsUrl = wsUrlFromLocation()): UseLiveSnapshot {
     };
   }, [wsUrl]);
 
-  return { nodes, history: historyRef.current, connected };
+  return { nodes, history: historyRef.current, connected, alerts, dismissAlert };
 }
 
 /** One representative number per domain for the client-side sparkline ring. */

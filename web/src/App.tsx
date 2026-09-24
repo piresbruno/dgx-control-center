@@ -32,7 +32,7 @@ const NAV: Array<{ sec?: string; id?: PageId; label?: string }> = [
 ];
 
 export function App() {
-  const { nodes, history, connected } = useLiveSnapshot();
+  const { nodes, history, connected, alerts, dismissAlert } = useLiveSnapshot();
   const [page, setPage] = useState<PageId>("overview");
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [navOpen, setNavOpen] = useState(false);
@@ -55,6 +55,24 @@ export function App() {
 
   return (
     <div className="app">
+      {alerts.length > 0 && (
+        <div style={{ position: "fixed", top: 12, right: 12, display: "grid", gap: 8, zIndex: 100 }} data-testid="alert-toasts">
+          {alerts.map((a) => (
+            <div key={a.id} className="panel" style={{ minWidth: 280, borderLeft: `3px solid var(--${a.severity === "critical" ? "crit" : a.severity === "warning" ? "warn" : "info"})` }}>
+              <div className="panel-body" style={{ display: "flex", gap: 8, alignItems: "start" }}>
+                <span className={`pill ${a.severity === "critical" ? "crit" : a.severity === "warning" ? "warn" : "info"}`}>
+                  <span className="dot" />{a.severity}
+                </span>
+                <div style={{ flex: 1 }}>
+                  <strong>{a.ruleName}</strong>
+                  <div className="hint" style={{ fontSize: 11 }}>{a.entity} — {a.detail}</div>
+                </div>
+                <button className="btn sm ghost" aria-label="Dismiss" onClick={() => dismissAlert(a.id)}>✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       <aside className={navOpen ? "sidebar open" : "sidebar"} data-testid="sidebar">
         <div className="brand">
           <div className="brand-mark">
