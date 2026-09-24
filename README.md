@@ -18,7 +18,7 @@ Control plane for a home LocalAI infrastructure — 2× DGX Spark (GB10) + QNAP 
 
 ## Status
 
-**83/92 roadmap tasks done — M0–M6 complete + M7 gate passed on real hardware, M8 Chat UI pending; v1.0.0 tag deferred until M8.** See [docs/DEVELOPMENT_STATUS.md](./docs/DEVELOPMENT_STATUS.md) for the exact pick-up-elsewhere note, and [PLAN.md](./PLAN.md) for the full roadmap with recorded gate outcomes.
+**91/92 roadmap tasks done — M0–M7 complete (gates passed on real hardware) + M8 Chat UI gate passed; only the v1.0.0 release tag remains.** See [docs/DEVELOPMENT_STATUS.md](./docs/DEVELOPMENT_STATUS.md) for the exact pick-up-elsewhere note, and [PLAN.md](./PLAN.md) for the full roadmap with recorded gate outcomes.
 
 | Milestone | State |
 |---|---|
@@ -30,7 +30,7 @@ Control plane for a home LocalAI infrastructure — 2× DGX Spark (GB10) + QNAP 
 | M5 Power & Clocks | ✅ done — gate: reboot reconcile + thermal trigger + spark-only 409 |
 | M6 Observability | ✅ done — gate: alert on pulled agent + kWh rollups populated |
 | M7 Hardening & Release | ✅ 7/8 — gate passed (fresh clone → first gateway request **9 min 0 s**, budget 30 min); v1.0.0 tag deferred until M8 |
-| M8 Chat UI | ⬜ pending |
+| M8 Chat UI | ✅ done — gate passed: live chat on `qwen3-0.6b`, folder context injected + persisted across restart, streaming markdown, image→vision routing |
 
 CI-enforced gates: `tsc -b` + vitest (305 tests) + c8 lines ≥75% (actual ~84%) + Playwright e2e on the fake fleet.
 

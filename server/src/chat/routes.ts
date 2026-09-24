@@ -303,7 +303,10 @@ export function registerChatRoutes(app: FastifyInstance, deps: ChatRouteDeps): v
           model: conversation.model,
           messages: upstreamMessages,
           stream,
-          ...(body?.maxTokens ? { max_tokens: body.maxTokens } : {}),
+          // Token accounting for the persisted turn (vLLM only reports usage on
+          // streams when asked) and a bounded default turn length.
+          ...(stream ? { stream_options: { include_usage: true } } : {}),
+          max_tokens: body?.maxTokens ?? 1024,
         }),
       },
     );

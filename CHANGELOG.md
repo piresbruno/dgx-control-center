@@ -4,11 +4,11 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
-### Planned
+### Added
 
-- M8 Chat UI: chat store, SSE chat completions proxy, folder-as-project context, image attachments, Chat page.
-
-- Chat UI: chat store (conversations, folders, messages, attachments in SQLite), SSE chat completions proxy over served models, folder-as-project context, image attachments with vision-capable routing, Chat page with streaming markdown.
+- **Chat UI (M8)** — chat store in SQLite (folders, conversations, messages, image attachments), SSE completions proxy over the served-models router (recorded as the `dashboard-chat` client), folders whose description is injected as project context into every turn, vision-capable model gate for attachments, and a Chat page with streaming markdown, attachment previews and per-turn telemetry (TTFT, tokens). Chat traffic streams through the same router/traces as any gateway client.
+- **Fresh-machine install path (M7)** — README quickstart from clone to first gateway request (verified 9 min end-to-end on the fleet), sample recipe with a warm vLLM cache volume, `nodes.json` seed shape documented.
+- **Playwright e2e suite** — fake-fleet specs for Overview/Alerts/Settings/Energy plus a chat spec (streaming, folder context, image routing) with `npm run test:e2e`.
 
 ## [0.1.0] - 2026-09-24
 

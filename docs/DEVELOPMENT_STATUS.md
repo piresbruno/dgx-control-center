@@ -1,10 +1,10 @@
 # Development Status — pick-up-elsewhere note
 
-_Last updated: 2026-09-24. Branch `main`. 305 tests, ~84 % lines coverage (gate 75 %), `.agentic/bin/validate` green, Playwright e2e green on the fake fleet._
+_Last updated: 2026-09-24. Branch `main`. 327 tests, ~85 % lines coverage (gate 75 %), `.agentic/bin/validate` green, Playwright e2e (6 specs) green on the fake fleet._
 
 ## Where we are
 
-**M0–M6 complete, M7 7/8 (gate PASSED), M8 Chat UI pending.** 83/92 roadmap tasks done. Gate outcomes are recorded inline in PLAN.md under each milestone. The only blocked item is the release tag: **v1.0.0 is deferred by owner decision until M8 lands** (release config documented in `docs/RELEASING.md`; CHANGELOG prepared with a dated 0.1.0 section).
+**M0–M8 complete — every milestone gate passed on the real fleet.** 91/92 roadmap tasks done; the only remaining item is the **v1.0.0 release tag** (release config in `docs/RELEASING.md`, CHANGELOG prepared), which was deferred by owner decision until M8 landed — M8 has now landed, so the tag is next (owner confirmation required by the semver skill). Gate outcomes are recorded inline in PLAN.md under each milestone.
 
 ### Done and verified on real hardware
 
@@ -18,8 +18,15 @@ _Last updated: 2026-09-24. Branch `main`. 305 tests, ~84 % lines coverage (gate 
 
 ### Remaining
 
-- **M8 Chat UI (7+1 tasks)** — chat store (conversations/folders/messages/attachments in SQLite), chat completions proxy over served-models with SSE streaming, folder-as-project context injected into prompts, image attachments + vision-capable routing, Chat page (list/folders/streaming markdown), tests ≥75 % coverage, M8 gate (chat end-to-end + folder context persisted).
-- **Release (blocked)** — v1.0.0 tag via the `semantic-versioning` skill, to run after M8 lands.
+- **Release** — v1.0.0 tag via the `semantic-versioning` skill (all six version sources, CHANGELOG section, annotated tag). Owner confirmation needed for the 1.0.0 stability declaration.
+- **Optional follow-ups** — live clock apply needs the one-time `cc-clock` sudoers install on a node (documented in RUNBOOKS), and the GLM TP=2 deployment is parked (start it from the Serve page when wanted).
+
+### M8 Chat UI (done, gate passed)
+
+- Surface: `/api/chat/folders`, `/api/chat/conversations` (+detail), `/api/chat/models`, `/api/chat/attachments/:id`, and `POST /api/chat/conversations/:id/messages` (SSE; `{stream:false}` returns buffered JSON).
+- Proxy: reuses the gateway router (health ranking, failover, on-demand spin-up) with client identity `dashboard-chat`; forwards engine SSE chunks verbatim and appends an `event: cc-meta` frame (message ids, status, ttft, duration, usage).
+- Context: the conversation's folder description becomes a leading `system` message; images become `image_url` content parts replayed from SQLite on later turns; images are refused (`400` + `visionAliases`) unless the conversation's alias is marked `vision` (set it via `POST /api/gateway/served-models {vision:true}`).
+- Live gate evidence (2026-09-24): `qwen3-0.6b` on dgx2 served via the real supervisor; streamed answer used a fact that existed only in the folder description (`ORION-7`); second turn returned engine usage (`114 in / 48 out`) with `ttft 256 ms`; traces show `dashboard-chat`; folder/description/messages survived a container restart.
 
 ## Live stack topology (as deployed on dgx-1)
 

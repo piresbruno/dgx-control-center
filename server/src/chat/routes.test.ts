@@ -209,10 +209,13 @@ describe("chat REST surface", () => {
     const upstream = seen.at(-1)! as {
       model: string;
       stream: boolean;
+      max_tokens: number;
       messages: Array<{ role: string; content: unknown }>;
     };
     expect(upstream.model).toBe("glm");
     expect(upstream.stream).toBe(true);
+    expect((upstream as { stream_options?: { include_usage: boolean } }).stream_options).toEqual({ include_usage: true });
+    expect(upstream.max_tokens).toBe(1024);
     expect(upstream.messages[0]).toEqual({
       role: "system",
       content: "Project context for this conversation:\nDescribe screenshots precisely.",
