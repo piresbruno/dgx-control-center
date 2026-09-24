@@ -874,6 +874,18 @@ if (alertsStore && alertRulesStore) {
       const bundlePath = opts.agentBundlePath ?? "agent/dist/agent.mjs";
       const helloTimeoutMs = opts.installHelloTimeoutMs ?? 60_000;
 
+      /** Upgrade = reinstall with the current bundle (version floor enforced at handshake). */
+      app.post("/api/nodes/:id/upgrade-agent", async (request, reply) => {
+        const { id } = request.params as { id: string };
+        const node = nodeDirectory.get(id);
+        if (!node) return reply.code(404).send({ error: "unknown node" });
+        reply.request.raw.url = `/api/nodes/${id}/install-agent`;
+        return app.inject({ method: "POST", url: `/api/nodes/${id}/install-agent` }).then((r) => {
+          reply.code(r.statusCode);
+          return r.body;
+        });
+      });
+
       app.post("/api/nodes/:id/install-agent", async (request, reply) => {
         const { id } = request.params as { id: string };
         const node = nodeDirectory.get(id);

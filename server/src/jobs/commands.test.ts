@@ -40,3 +40,21 @@ describe("job command registry", () => {
     expect(JOB_KINDS).toContain("modelctl-download");
   });
 });
+
+describe("capability sweep (M7)", () => {
+  it("resolves to a python harness that emits JSON with node capabilities", async () => {
+    const { jobArgv } = await import("./commands.js");
+    const argv = jobArgv("capability-sweep", {});
+    expect(argv?.[0]).toBe("bash");
+    expect(argv?.[2]).toContain("ccClock");
+    // The harness actually runs on this machine and emits valid JSON.
+    const { execFile } = await import("node:child_process");
+    const stdout = await new Promise<string>((resolve, reject) =>
+      execFile("bash", ["-c", argv![2]!], { timeout: 20_000 }, (err, out) => (err ? reject(err) : resolve(out))),
+    );
+    const parsed = JSON.parse(stdout) as Record<string, string | null>;
+    expect(parsed.node).toBeTruthy();
+    expect(parsed.nodejs).toMatch(/^v\d+/);
+    expect(parsed.ccClock).toMatch(/installed|missing/);
+  });
+});

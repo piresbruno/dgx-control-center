@@ -39,6 +39,7 @@ export const jobParamsSchemas = {
     .strict()
     .refine((v) => v.gpuMaxMhz != null || v.cpuMaxMhz != null, "at least one cap required"),
   "fabric-probe": z.object({}).strict().default({}),
+  "capability-sweep": z.object({}).strict().default({}),
   "bench-decode": benchParamsSchema.strict(),
   "bench-prefill": benchParamsSchema.strict(),
 } as const;
@@ -72,6 +73,27 @@ export function jobArgv(kind: string, params: unknown = {}): string[] | null {
       return ["bash", "-c", buildClockStatusCommand()];
     case "fabric-probe":
       return ["bash", "-c", buildFabricProbeCommand()];
+    case "capability-sweep": {
+      const script = [
+        "python3 - <<'PY'",
+        "import json, subprocess, shutil",
+        "def ver(cmd):",
+        "    try:",
+        "        return subprocess.check_output(cmd, shell=True, text=True, timeout=10).strip()",
+        "    except Exception:",
+        "        return None",
+        "print(json.dumps({",
+        "    'node': ver('uname -sr'),",
+        "    'nodejs': ver('node --version'),",
+        "    'modelctl': ver('PATH=$HOME/.local/bin:$PATH modelctl --version'),",
+        "    'uv': ver('PATH=$HOME/.local/bin:$PATH uv --version'),",
+        "    'docker': ver('docker --version'),",
+        "    'ccClock': 'installed' if __import__('os').path.exists('/usr/local/bin/cc-clock') else 'missing',",
+        "}))",
+        "PY",
+      ].join("\n");
+      return ["bash", "-c", script];
+    }
     case "bench-decode":
       return ["bash", "-c", buildBenchScript("decode", benchParamsSchema.parse(p))];
     case "bench-prefill":
