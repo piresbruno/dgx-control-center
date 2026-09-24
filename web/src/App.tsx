@@ -11,6 +11,7 @@ import { RouterPage } from "./pages/RouterPage.js";
 import { EnergyPage } from "./pages/PowerPage.js";
 import { AlertsPage } from "./pages/AlertsPage.js";
 import { FleetExplorerPage } from "./pages/FleetExplorerPage.js";
+import { SettingsPage } from "./pages/SettingsPage.js";
 
 type PageId = "overview" | "node" | "models" | "serve" | "recipes" | "analysis" | "clients" | "router" | "energy" | "alerts" | "fleet" | "settings";
 
