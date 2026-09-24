@@ -40,7 +40,7 @@ export interface GatewayDeps {
   /** Per-request hook (request recorder lands in its own task). */
   onAttempt?: (info: { alias: string; nodeId: string; port: number; status: number | null; error?: string; startedAt: number; endedAt: number }) => void;
   /** Observe response chunks with arrival times (request recorder). */
-  onResponseChunk?: (chunk: string, atMs: number) => void;
+  onResponseChunk?: (chunk: string, atMs: number, status: number) => void;
   /** Router-managed spin-up hook: return true when a start was dispatched. */
   ensureOnDemand?: (alias: string) => Promise<boolean> | boolean;
   /** How long to wait for a spun-up engine before giving up (503). */
@@ -214,7 +214,7 @@ export async function handleGatewayRequest(deps: GatewayDeps, req: GatewayReques
           if (done) break;
           const chunk = decoder.decode(value, { stream: true });
           text += chunk;
-          deps.onResponseChunk?.(chunk, deps.now?.() ?? Date.now());
+          deps.onResponseChunk?.(chunk, deps.now?.() ?? Date.now(), upstream.status);
         }
       }
       attempts.push({ nodeId: target.nodeId, port: target.port, status: upstream.status });

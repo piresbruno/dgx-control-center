@@ -16,6 +16,8 @@ import { checkMultiNode } from "./serving/multiNode.js";
 import { ServedModelsStore, type ServedModelTarget } from "./gateway/servedModels.js";
 import { ClientsStore } from "./gateway/clients.js";
 import { handleGatewayRequest, healthFromState } from "./gateway/gateway.js";
+import { registerChatRoutes } from "./chat/routes.js";
+import type { ChatStore } from "./chat/store.js";
 import { TracesStore } from "./stores/tracesStore.js";
 import { TraceQueries } from "./stores/traceQueries.js";
 import { AlertsStore } from "./stores/alertsStore.js";
@@ -55,6 +57,7 @@ function bodyModel(body: string | null): string | null {
 }
 
 export interface AppOptions {
+  chatStore?: ChatStore;
   logger?: boolean;
   /** When provided, /agent-ws is live with these deps (real fleet or --fake-fleet). */
   agentHubDeps?: AgentHubDeps;
@@ -707,6 +710,19 @@ if (alertsStore && alertRulesStore) {
         if (!servedModelsStore.remove(id)) return reply.code(404).send({ error: "unknown served model" });
         return { removed: true };
       });
+
+      // Chat surface (M8): folders/conversations/messages + streaming proxy.
+      if (opts.chatStore) {
+        registerChatRoutes(app, {
+          store: opts.chatStore,
+          servedModels: servedModelsStore,
+          targetState,
+          rrCounters,
+          upstreamAuth: opts.upstreamAuth ?? null,
+          ...(onDemand ? { ensureOnDemand: (a: string) => onDemand.ensureUp(a).then((r) => r.ok) } : {}),
+          traces,
+        });
+      }
 
       // Clients & keys management.
       if (clientsStore) {

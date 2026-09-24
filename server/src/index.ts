@@ -18,6 +18,7 @@ import { DeploymentStore } from "./serving/deployments.js";
 import { ServedModelsStore } from "./gateway/servedModels.js";
 import { ClientsStore } from "./gateway/clients.js";
 import { TracesStore } from "./stores/tracesStore.js";
+import { ChatStore } from "./chat/store.js";
 import { TraceQueries } from "./stores/traceQueries.js";
 import { EnergyStore } from "./stores/energyStore.js";
 import { AlertsStore } from "./stores/alertsStore.js";
@@ -160,6 +161,7 @@ const alertRulesStore = new AlertRulesStore({ filePath: "config/alert-rules.json
 const settingsStore = new SettingsStore({ filePath: "config/settings.json" });
 const traceQueries = new TraceQueries(db);
 const tracesStore = new TracesStore({ db });
+const chatStore = new ChatStore({ db });
 // ── Maintenance (M7): retention + WAL checkpoint at boot and hourly ──
 const maintain = (): void => {
   try {
@@ -212,6 +214,7 @@ const app = buildApp({
   configDir: "config",
   settingsStore,
   tracesStore: tracesStore,
+  chatStore: chatStore,
   traceQueries,
   upstreamAuth: env.CC_UPSTREAM_AUTH ?? null,
   sshIdentity: env.CC_SSH_IDENTITY,
