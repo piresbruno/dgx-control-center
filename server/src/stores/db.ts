@@ -98,6 +98,49 @@ export const MIGRATIONS: Array<{ version: number; sql: string }> = [
       CREATE INDEX idx_alert_events_ts ON alert_events (ts);
     `,
   },
+  {
+    version: 4,
+    sql: `
+      CREATE TABLE chat_folders (
+        id          TEXT PRIMARY KEY,
+        name        TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        created_at  INTEGER NOT NULL,
+        updated_at  INTEGER NOT NULL
+      );
+      CREATE TABLE chat_conversations (
+        id         TEXT PRIMARY KEY,
+        folder_id  TEXT REFERENCES chat_folders (id) ON DELETE SET NULL,
+        title      TEXT NOT NULL,
+        model      TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX idx_chat_conversations_folder ON chat_conversations (folder_id, updated_at);
+      CREATE TABLE chat_messages (
+        id              TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL REFERENCES chat_conversations (id) ON DELETE CASCADE,
+        role            TEXT NOT NULL,
+        content         TEXT NOT NULL,
+        model           TEXT,
+        error           TEXT,
+        ttft_ms         INTEGER,
+        duration_ms     INTEGER,
+        usage           TEXT,
+        created_at      INTEGER NOT NULL
+      );
+      CREATE INDEX idx_chat_messages_conv ON chat_messages (conversation_id, created_at);
+      CREATE TABLE chat_attachments (
+        id         TEXT PRIMARY KEY,
+        message_id TEXT NOT NULL REFERENCES chat_messages (id) ON DELETE CASCADE,
+        name       TEXT NOT NULL,
+        mime       TEXT NOT NULL,
+        bytes      INTEGER NOT NULL,
+        data       BLOB NOT NULL
+      );
+      CREATE INDEX idx_chat_attachments_msg ON chat_attachments (message_id);
+    `,
+  },
 ];
 
 export function openDb(file: string, now: number = Date.now()): Database.Database {
