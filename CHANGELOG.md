@@ -4,7 +4,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
-### Planned (M8)
+### Planned
+
+- M8 Chat UI: chat store, SSE chat completions proxy, folder-as-project context, image attachments, Chat page.
 
 - Chat UI: chat store (conversations, folders, messages, attachments in SQLite), SSE chat completions proxy over served models, folder-as-project context, image attachments with vision-capable routing, Chat page with streaming markdown.
 

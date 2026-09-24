@@ -12,13 +12,11 @@ Use the `semantic-versioning` skill for version bumps, releases, and Git tags.
 
 ## Repository configuration
 
-Before the first release, document:
-
-1. The authoritative version file or files.
-2. Commands that refresh derived version references and examples.
-3. Required test, validation, build, and package-smoke commands.
-4. The release branch and any protected-branch requirements.
-5. Whether a package registry or deployment is part of a release.
+1. **Authoritative version files** — all five workspace manifests (`package.json`, `shared/`, `server/`, `agent/`, `web/`) plus `shared/src/version.ts` (the runtime `VERSION` reported by `/api/health` and the handshake). All six must carry the same value.
+2. **Derived references** — `MIN_AGENT_VERSION` in `shared/src/version.ts` moves independently (agent protocol floor, not the dashboard version); do not bump it with the release.
+3. **Required checks** — `npm run build` (tsc), `npm run test:coverage` (vitest + c8 lines ≥75%), `npx playwright test` (fake-fleet e2e), `.agentic/bin/validate`.
+4. **Release branch** — `main`; commits land via `git -c core.hooksPath=.githooks commit`.
+5. **Registry/deployment** — none: deployment is `docker compose up -d --build` from a release checkout (see docs/DEVELOPMENT_STATUS.md). Nothing is published to a package registry.
 
 Do not create a tag until these facts are known. Keep this file focused and link to detailed deployment documentation rather than duplicating it.
 
