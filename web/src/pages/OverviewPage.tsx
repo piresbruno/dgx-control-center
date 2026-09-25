@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import type { LiveNode } from "../api/ws.js";
 import { nodeSummary, statusPill } from "../App.js";
+import { Kpi } from "../ui/index.js";
+import { listDeployments, type DeploymentRecord } from "../api/serving.js";
+import { getSummary, type AnalysisSummary } from "../api/analysis.js";
 
 export interface OverviewProps {
   nodes: LiveNode[];
@@ -9,13 +12,6 @@ export interface OverviewProps {
   onSelectNode(id: string): void;
 }
 
-interface DeploymentRow {
-  desired: string;
-}
-
-interface AnalysisSummary {
-  kpis: { requests: number; errors: number };
-}
 
 export function OverviewPage({ nodes, history, connected, onSelectNode }: OverviewProps) {
   const online = nodes.filter((n) => n.state !== "offline" && n.state !== "provisioning");
@@ -25,21 +21,21 @@ export function OverviewPage({ nodes, history, connected, onSelectNode }: Overvi
     return sum + (typeof watts === "number" ? watts : 0);
   }, 0);
 
-  const [deployments, setDeployments] = useState<DeploymentRow[]>([]);
+  const [deployments, setDeployments] = useState<DeploymentRecord[]>([]);
   const [summary, setSummary] = useState<AnalysisSummary | null>(null);
 
   useEffect(() => {
     let alive = true;
     const load = async (): Promise<void> => {
       try {
-        const d = await fetch("/api/serve/deployments").then((r) => (r.ok ? r.json() : null));
-        if (alive && d) setDeployments(Array.isArray(d) ? d : (d.deployments ?? []));
+        const d = await listDeployments();
+        if (alive) setDeployments(d.deployments ?? []);
       } catch {
         // Overview tolerates partial data.
       }
       try {
-        const s = await fetch("/api/analysis/summary?windowHours=24").then((r) => (r.ok ? r.json() : null));
-        if (alive && s) setSummary(s as AnalysisSummary);
+        const s = await getSummary(24);
+        if (alive) setSummary(s);
       } catch {
         // Ditto.
       }
@@ -59,41 +55,46 @@ export function OverviewPage({ nodes, history, connected, onSelectNode }: Overvi
       <div className="page-head">
         <div className="page-title">
           <h1>Fleet overview</h1>
-          <div className="sub">2× DGX Spark (GB10) · QNAP NAS store · gateway on http://cc.home.local/v1</div>
+          <div className="sub">{`${nodes.length} node${nodes.length === 1 ? "" : "s"} · live metrics via WebSocket`}</div>
         </div>
       </div>
 
       <div className="grid cols-4">
-        <div className="panel kpi">
-          <div className="label">Nodes online</div>
-          <div className="value">{online.length}<small> / {nodes.length || "…"}</small></div>
-          <div className="delta">{connected ? "live feed" : "reconnecting…"}</div>
-        </div>
-        <div className="panel kpi" data-testid="kpi-serving">
-          <div className="label">Models serving</div>
-          <div className="value">{serving}<small> / {deployments.length || "…"}</small></div>
-          <div className="delta dim">{deployments.length > 0 ? "desired running / registered" : "no deployments yet"}</div>
-        </div>
-        <div className="panel kpi" data-testid="kpi-requests">
-          <div className="label">Requests (24 h)</div>
-          <div className="value">{summary ? summary.kpis.requests : "—"}</div>
-          <div className="delta dim">{summary ? `${summary.kpis.errors} errors` : "no gateway traffic yet"}</div>
-        </div>
-        <div className="panel kpi">
-          <div className="label">Power now</div>
-          <div className="value">{totalWatts > 0 ? totalWatts : "—"}<small>W</small></div>
-          <div className="delta dim">fleet total where reported</div>
-        </div>
+        <Kpi
+          label="Nodes online"
+          value={online.length}
+          unit={` / ${nodes.length || "…"}`}
+          delta={connected ? "live feed" : "reconnecting…"}
+        />
+        <Kpi
+          testId="kpi-serving"
+          label="Models serving"
+          value={serving}
+          unit={` / ${deployments.length || "…"}`}
+          delta={deployments.length > 0 ? "desired running / registered" : "no deployments yet"}
+        />
+        <Kpi
+          testId="kpi-requests"
+          label="Requests (24 h)"
+          value={summary ? summary.kpis.requests : "—"}
+          delta={summary ? `${summary.kpis.errors} errors` : "no gateway traffic yet"}
+        />
+        <Kpi
+          label="Power now"
+          value={totalWatts > 0 ? totalWatts : "—"}
+          unit="W"
+          delta="fleet total where reported"
+        />
       </div>
 
-      <div className="grid cols-3" style={{ marginTop: 18 }}>
+      <div className="grid cols-3 mt">
         {nodes.length === 0 && (
-          <div className="panel" style={{ gridColumn: "1 / -1" }}>
+          <div className="panel col-span-all">
             <div className="panel-body"><div className="empty">No nodes connected yet — register one under Settings → Nodes, then install its agent.</div></div>
           </div>
         )}
         {nodes.map((node) => (
-          <div className="panel node-card" key={node.sparkId} style={{ cursor: "pointer" }} onClick={() => onSelectNode(node.sparkId)} data-testid={`node-${node.sparkId}`}>
+          <div className="panel node-card clickable" key={node.sparkId} onClick={() => onSelectNode(node.sparkId)} data-testid={`node-${node.sparkId}`}>
             <div className="head">
               <div className="node-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -101,7 +102,7 @@ export function OverviewPage({ nodes, history, connected, onSelectNode }: Overvi
                   <path d="M9 9h6v6H9z" />
                 </svg>
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="grow">
                 <div className="name">{node.name} <span className="faint tiny">· {node.role}</span></div>
                 <div className="meta">{node.kind}</div>
               </div>
@@ -110,7 +111,7 @@ export function OverviewPage({ nodes, history, connected, onSelectNode }: Overvi
             <Gauge label="GPU" value={numOf(node, "gpu", "utilPct")} suffix="%" color="var(--series-1)" />
             <Gauge label="CPU" value={numOf(node, "cpu", "loadPct")} suffix="%" color="var(--series-2)" />
             <Gauge label="MEM" value={numOf(node, "memory", "usedPct")} suffix="%" color="var(--series-3)" />
-            <div className="row between" style={{ borderTop: "1px solid var(--hairline)", paddingTop: 10 }}>
+            <div className="row between card-foot">
               <span className="tiny num dim">{nodeSummary(node)}</span>
               <span className="tiny faint mono">{node.sparkId}</span>
             </div>
@@ -119,7 +120,7 @@ export function OverviewPage({ nodes, history, connected, onSelectNode }: Overvi
         ))}
       </div>
 
-      <div className="note">◈ Live over WS — cards update in place; charts arrive with the query API (M1+).</div>
+      <div className="note">◈ Live over WS — cards update in place.</div>
     </>
   );
 }

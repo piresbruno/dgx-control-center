@@ -1,23 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-
-interface ClientRow {
-  id: string;
-  name: string;
-  keyPrefix: string;
-  scopes: string[];
-  createdAt: number;
-  revokedAt: number | null;
-  lastSeenAt: number | null;
-}
-
-async function json<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, { headers: { "content-type": "application/json" }, ...init });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `${res.status} ${res.statusText}`);
-  }
-  return (await res.json()) as T;
-}
+import { ActionTd, ActionTh, ErrorBanner, Field, FormGrid, KeyBlock, TableScroller } from "../ui/index.js";
+import {
+  createClient,
+  listClients,
+  removeClient,
+  revokeClient,
+  type ClientRow,
+} from "../api/gateway.js";
 
 export function ClientsPage() {
   const [clients, setClients] = useState<ClientRow[] | null>(null);
@@ -28,7 +17,7 @@ export function ClientsPage() {
 
   const refresh = useCallback(async () => {
     try {
-      setClients((await json<{ clients: ClientRow[] }>("/api/gateway/clients")).clients);
+      setClients((await listClients()).clients);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -44,10 +33,7 @@ export function ClientsPage() {
     setError(null);
     try {
       const scopeList = scopes.split(",").map((s) => s.trim()).filter(Boolean);
-      const { key } = await json<{ client: ClientRow; key: string }>("/api/gateway/clients", {
-        method: "POST",
-        body: JSON.stringify({ name, scopes: scopeList }),
-      });
+      const { key } = await createClient({ name, scopes: scopeList });
       setCreatedKey(key);
       setName("");
       setScopes("");
@@ -60,7 +46,7 @@ export function ClientsPage() {
   const revoke = async (id: string) => {
     setError(null);
     try {
-      await json(`/api/gateway/clients/${id}/revoke`, { method: "POST" });
+      await revokeClient(id);
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -70,7 +56,7 @@ export function ClientsPage() {
   const remove = async (id: string) => {
     setError(null);
     try {
-      await json(`/api/gateway/clients/${id}`, { method: "DELETE" });
+      await removeClient(id);
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -81,24 +67,31 @@ export function ClientsPage() {
     <>
       <section className="panel">
         <div className="panel-head"><h2>Create client</h2></div>
-        <div className="panel-body" style={{ display: "grid", gap: 8 }}>
+        <div className="panel-body stack">
           <p className="hint">
             Keys are hashed (SHA-256) — the full key is shown exactly once. Scopes are served-model aliases;
             empty or "*" grants everything.
           </p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <input placeholder="Client name" value={name} onChange={(e) => setName(e.target.value)} style={{ flex: 1, minWidth: 160 }} aria-label="Client name" />
-            <input placeholder="Scopes (comma-separated, empty = *)" value={scopes} onChange={(e) => setScopes(e.target.value)} style={{ flex: 1, minWidth: 200 }} aria-label="Scopes" />
-            <button className="btn primary" disabled={!name.trim()} onClick={() => void create()}>Create key</button>
-          </div>
+          <FormGrid>
+            <Field label="Client name">
+              <input className="grow" placeholder="Client name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Client name" />
+            </Field>
+            <Field label="Scopes" hint="Comma-separated, empty = *">
+              <input className="grow" placeholder="Scopes (comma-separated, empty = *)" value={scopes} onChange={(e) => setScopes(e.target.value)} aria-label="Scopes" />
+            </Field>
+            <Field label="">
+              <div className="form-row">
+                <button className="btn primary" disabled={!name.trim()} onClick={() => void create()}>Create key</button>
+              </div>
+            </Field>
+          </FormGrid>
           {createdKey && (
-            <div data-testid="created-key" style={{ padding: 10, borderRadius: 8, background: "var(--bg-2, #11151c)", fontFamily: "monospace", wordBreak: "break-all" }}>
-              {createdKey}
-              <button className="btn sm" style={{ marginLeft: 8 }} onClick={() => void navigator.clipboard?.writeText(createdKey).catch(() => undefined)}>Copy</button>
-              <div className="hint" style={{ marginTop: 4 }}>This key will never be shown again.</div>
-            </div>
+            <>
+              <KeyBlock value={createdKey} testId="created-key" />
+              <div className="hint">This key will never be shown again.</div>
+            </>
           )}
-          {error && <div style={{ color: "var(--crit)" }}>{error}</div>}
+          <ErrorBanner error={error} />
         </div>
       </section>
 
@@ -107,33 +100,35 @@ export function ClientsPage() {
           <h2>Clients</h2>
           <span className="pill info"><span className="dot" />{clients?.length ?? "…"}</span>
         </div>
-        <div className="panel-body flush" style={{ overflowX: "auto" }}>
+        <TableScroller>
           <table className="table" data-testid="clients-table">
-            <thead><tr><th>Name</th><th>Key</th><th>Scopes</th><th>Last seen</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Name</th><th>Key</th><th>Scopes</th><th>Last seen</th><th>Status</th><ActionTh /></tr></thead>
             <tbody>
               {(clients ?? []).map((c) => (
                 <tr key={c.id}>
-                  <td><strong>{c.name}</strong></td>
-                  <td><code style={{ fontSize: 11.5 }}>{c.keyPrefix}</code></td>
-                  <td>{c.scopes.map((s) => <span key={s} className="chip">{s}</span>)}</td>
+                  <td className="strong">{c.name}</td>
+                  <td><code className="small">{c.keyPrefix}</code></td>
+                  <td>
+                    <div className="row wrap tight">
+                      {c.scopes.map((s) => <span key={s} className="chip">{s}</span>)}
+                    </div>
+                  </td>
                   <td>{c.lastSeenAt ? new Date(c.lastSeenAt).toLocaleString() : "never"}</td>
                   <td>
                     {c.revokedAt != null
                       ? <span className="pill crit"><span className="dot" />revoked</span>
                       : <span className="pill ok"><span className="dot" />active</span>}
                   </td>
-                  <td>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      {c.revokedAt == null && <button className="btn sm warn" onClick={() => void revoke(c.id)}>Revoke</button>}
-                      <button className="btn sm ghost" onClick={() => void remove(c.id)}>✕</button>
-                    </div>
-                  </td>
+                  <ActionTd>
+                    {c.revokedAt == null && <button className="btn sm warn" onClick={() => void revoke(c.id)}>Revoke</button>}
+                    <button className="btn sm ghost" onClick={() => void remove(c.id)}>✕</button>
+                  </ActionTd>
                 </tr>
               ))}
               {clients && clients.length === 0 && <tr><td colSpan={6} className="hint">No clients yet.</td></tr>}
             </tbody>
           </table>
-        </div>
+        </TableScroller>
       </section>
     </>
   );

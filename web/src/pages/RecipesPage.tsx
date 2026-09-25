@@ -7,13 +7,8 @@ import {
   createDeployment,
   type RecipeRecord,
 } from "../api/serving.js";
-
-interface NodeRow {
-  id: string;
-  name: string;
-  kind: string;
-  role: string;
-}
+import { ActionTd, ActionTh, Callout, CellWith, ErrorBanner, Field, FormGrid, TableScroller } from "../ui/index.js";
+import { listNodes, type NodeRecord } from "../api/nodes.js";
 
 /** git drift chip: HEAD moved / dirty build relative to what we probed. */
 function DriftChip({ recipe }: { recipe: RecipeRecord }) {
@@ -51,7 +46,7 @@ function MetaChips({ recipe }: { recipe: RecipeRecord }) {
 
 export function RecipesPage() {
   const [recipes, setRecipes] = useState<RecipeRecord[] | null>(null);
-  const [nodes, setNodes] = useState<NodeRow[]>([]);
+  const [nodes, setNodes] = useState<NodeRecord[]>([]);
   const [nodeId, setNodeId] = useState("");
   const [path, setPath] = useState("");
   const [label, setLabel] = useState("");
@@ -75,8 +70,7 @@ export function RecipesPage() {
   }, [refresh]);
 
   useEffect(() => {
-    void fetch("/api/nodes")
-      .then((r) => r.json() as Promise<{ nodes: NodeRow[] }>)
+    void listNodes()
       .then((d) => {
         const sparks = d.nodes.filter((n) => n.kind !== "nas");
         setNodes(sparks);
@@ -138,37 +132,47 @@ export function RecipesPage() {
         <div className="panel-head">
           <h2>Register recipe</h2>
         </div>
-        <div className="panel-body" style={{ display: "grid", gap: 8 }}>
+        <div className="panel-body stack">
           <p className="hint">
             A recipe is a user-owned folder on a node (start.sh dispatcher + .env). The dashboard never edits it —
             it probes read-only and runs its verbs.
           </p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <select value={nodeId} onChange={(e) => setNodeId(e.target.value)} aria-label="Node">
-              {nodes.map((n) => (
-                <option key={n.id} value={n.id}>{n.name || n.id}</option>
-              ))}
-            </select>
-            <input
-              style={{ flex: 2, minWidth: 260 }}
-              placeholder="/home/you/recipes/GLM-…"
-              value={path}
-              onChange={(e) => setPath(e.target.value)}
-              aria-label="Absolute path on node"
-            />
-            <input
-              style={{ flex: 1, minWidth: 160 }}
-              placeholder="Label (optional)"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              aria-label="Label"
-            />
-            <button className="btn primary" disabled={busy || !nodeId || !path.trim()} onClick={() => void register()}>
-              Register &amp; probe
-            </button>
-          </div>
-          {message && <div style={{ color: "var(--info)" }}>{message}</div>}
-          {error && <div style={{ color: "var(--crit)" }}>{error}</div>}
+          <FormGrid>
+            <Field label="Node">
+              <select value={nodeId} onChange={(e) => setNodeId(e.target.value)} aria-label="Node">
+                {nodes.map((n) => (
+                  <option key={n.id} value={n.id}>{n.name || n.id}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Path">
+              <input
+                className="grow"
+                placeholder="/home/you/recipes/GLM-…"
+                value={path}
+                onChange={(e) => setPath(e.target.value)}
+                aria-label="Absolute path on node"
+              />
+            </Field>
+            <Field label="Label">
+              <input
+                className="w-lg"
+                placeholder="Label (optional)"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                aria-label="Label"
+              />
+            </Field>
+            <Field label="">
+              <div className="form-row">
+                <button className="btn primary" disabled={busy || !nodeId || !path.trim()} onClick={() => void register()}>
+                  Register &amp; probe
+                </button>
+              </div>
+            </Field>
+          </FormGrid>
+          {message && <Callout kind="info">{message}</Callout>}
+          <ErrorBanner error={error} />
         </div>
       </section>
 
@@ -177,7 +181,7 @@ export function RecipesPage() {
           <h2>Recipes</h2>
           <span className="pill info"><span className="dot" />{recipes?.length ?? "…"} registered</span>
         </div>
-        <div className="panel-body flush" style={{ overflowX: "auto" }}>
+        <TableScroller>
           <table className="table" data-testid="recipes-table">
             <thead>
               <tr>
@@ -185,19 +189,23 @@ export function RecipesPage() {
                 <th>Node</th>
                 <th>Probe</th>
                 <th>Drift</th>
-                <th>Actions</th>
+                <ActionTh />
               </tr>
             </thead>
             <tbody>
               {(recipes ?? []).map((r) => (
                 <tr key={r.id} data-testid={`recipe-${r.id}`}>
-                  <td>
-                    <strong>{r.label ?? r.id}</strong>
-                    <div className="hint" style={{ fontSize: 11 }}>{r.path}</div>
-                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
-                      <MetaChips recipe={r} />
-                    </div>
-                  </td>
+                  <CellWith
+                    title={r.label ?? r.id}
+                    sub={
+                      <>
+                        {r.path}
+                        <div className="form-row">
+                          <MetaChips recipe={r} />
+                        </div>
+                      </>
+                    }
+                  />
                   <td>{r.sparkId}</td>
                   <td>
                     {r.probeError ? (
@@ -208,13 +216,11 @@ export function RecipesPage() {
                     {r.orphaned && <span className="pill warn"><span className="dot" />orphaned</span>}
                   </td>
                   <td><DriftChip recipe={r} /></td>
-                  <td>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      <button className="btn sm" onClick={() => void reprobe(r.id)}>Re-probe</button>
-                      <button className="btn sm primary" disabled={!r.meta} onClick={() => void deploy(r.id)}>Deploy</button>
-                      <button className="btn sm ghost" onClick={() => void remove(r.id)}>✕</button>
-                    </div>
-                  </td>
+                  <ActionTd>
+                    <button className="btn sm" onClick={() => void reprobe(r.id)}>Re-probe</button>
+                    <button className="btn sm primary" disabled={!r.meta} onClick={() => void deploy(r.id)}>Deploy</button>
+                    <button className="btn sm ghost" onClick={() => void remove(r.id)}>✕</button>
+                  </ActionTd>
                 </tr>
               ))}
               {recipes && recipes.length === 0 && (
@@ -222,7 +228,7 @@ export function RecipesPage() {
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroller>
       </section>
     </>
   );

@@ -9,6 +9,7 @@ import {
   type DeploymentRecord,
   type RecipeRecord,
 } from "../api/serving.js";
+import { ActionTd, ActionTh, Callout, CellWith, ErrorBanner, TableScroller } from "../ui/index.js";
 
 const STATE_PILL: Record<string, string> = {
   healthy: "ok",
@@ -68,22 +69,13 @@ function Console({ deployment }: { deployment: DeploymentRecord }) {
 
   const jobLabel = deployment.jobState ? `${deployment.jobState}` : "idle";
   return (
-    <div>
-      <div className="hint" style={{ marginBottom: 4 }}>
+    <div className="stack tight">
+      <div className="hint">
         driver console — {jobLabel} {deployment.jobId ? `· ${deployment.jobId}` : ""}
       </div>
       <pre
+        className="code-block code-block--console"
         data-testid={`console-${deployment.id}`}
-        style={{
-          background: "var(--bg-2, #11151c)",
-          color: "var(--fg-2, #c7d0dd)",
-          padding: 10,
-          borderRadius: 8,
-          maxHeight: 220,
-          overflow: "auto",
-          fontSize: 11.5,
-          whiteSpace: "pre-wrap",
-        }}
       >
         {output || "(no job output yet)"}
       </pre>
@@ -184,17 +176,11 @@ export function ServePage() {
 
   return (
     <>
-      {guardMessage && (
-        <section className="panel">
-          <div className="panel-body" style={{ color: "var(--warn)" }} data-testid="guard-message">
-            {guardMessage}
-          </div>
-        </section>
-      )}
-      {error && (
-        <section className="panel">
-          <div className="panel-body" style={{ color: "var(--crit)" }}>{error}</div>
-        </section>
+      {(guardMessage || error) && (
+        <div className="mb stack tight">
+          {guardMessage && <Callout kind="warn" testId="guard-message">{guardMessage}</Callout>}
+          <ErrorBanner error={error} />
+        </div>
       )}
 
       <section className="panel">
@@ -202,14 +188,14 @@ export function ServePage() {
           <h2>Deployments</h2>
           <span className="pill info"><span className="dot" />{deployments?.length ?? "…"}</span>
         </div>
-        <div className="panel-body flush" style={{ overflowX: "auto" }}>
+        <TableScroller>
           <table className="table" data-testid="deployments-table">
             <thead>
               <tr>
                 <th>Deployment</th>
                 <th>State</th>
                 <th>Endpoint</th>
-                <th>Actions</th>
+                <ActionTh />
               </tr>
             </thead>
             <tbody>
@@ -217,53 +203,47 @@ export function ServePage() {
                 const recipe = recipeOf(d);
                 return (
                   <tr key={d.id} data-testid={`dep-${d.id}`}>
-                    <td>
-                      <strong>{recipe?.label ?? d.recipeId}</strong>
-                      <div className="hint" style={{ fontSize: 11 }}>
-                        {d.sparkId} · entry {d.entry ?? "?"} · desired {d.desired}
-                      </div>
-                    </td>
+                    <CellWith
+                      title={recipe?.label ?? d.recipeId}
+                      sub={`${d.sparkId} · entry ${d.entry ?? "?"} · desired ${d.desired}`}
+                    />
                     <td><StatePill dep={d} /></td>
                     <td>
                       {d.port != null ? (
-                        <code style={{ fontSize: 11.5 }}>/llm/node/{d.sparkId}/{d.port}</code>
+                        <code className="small">/llm/node/{d.sparkId}/{d.port}</code>
                       ) : (
                         <span className="hint">no port</span>
                       )}
                     </td>
-                    <td>
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                        <button className="btn sm primary" onClick={() => void verb(d.id, "start")}>Start</button>
-                        <ArmedStop dep={d} onStopped={refresh} />
-                        <button className="btn sm" onClick={() => void verb(d.id, "restart")}>Restart</button>
-                        <button className="btn sm" onClick={() => void verb(d.id, "probe")}>Probe</button>
-                        <button className="btn sm ghost" title="Remove deployment record" onClick={() => void remove(d.id)}>✕</button>
-                      </div>
-                    </td>
+                    <ActionTd>
+                      <button className="btn sm primary" onClick={() => void verb(d.id, "start")}>Start</button>
+                      <ArmedStop dep={d} onStopped={refresh} />
+                      <button className="btn sm" onClick={() => void verb(d.id, "restart")}>Restart</button>
+                      <button className="btn sm" onClick={() => void verb(d.id, "probe")}>Probe</button>
+                      <button className="btn sm ghost" title="Remove deployment record" onClick={() => void remove(d.id)}>✕</button>
+                    </ActionTd>
                   </tr>
                 );
               })}
               {deployments && deployments.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="hint">
-                    No deployments. Register and deploy a recipe from the Recipes page.
-                  </td>
+                  <td colSpan={4}><div className="empty">No deployments. Register and deploy a recipe from the Recipes page.</div></td>
                 </tr>
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroller>
       </section>
 
       {(deployments ?? []).map((d) => (
-        <section className="panel" key={`console-${d.id}`}>
+        <section className="panel mt" key={`console-${d.id}`}>
           <div className="panel-head">
             <h3>{recipeOf(d)?.label ?? d.recipeId} — console</h3>
             <StatePill dep={d} />
           </div>
-          <div className="panel-body">
+          <div className="panel-body stack tight">
             {d.lastProbe && (
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+              <div className="form-row">
                 {Object.entries(d.lastProbe.ranks ?? {}).map(([k, v]) => (
                   <span key={k} className={`pill ${v === "running" ? "ok" : v === "absent" ? "info" : "crit"}`}>
                     <span className="dot" />{k}: {v}

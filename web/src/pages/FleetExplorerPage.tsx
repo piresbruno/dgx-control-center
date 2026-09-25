@@ -1,16 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-
-interface SeriesRow {
-  nodeId: string;
-  points: Array<{ t: number; v: number }>;
-}
-
-interface FleetSeries {
-  domain: string;
-  granularity: string;
-  hours: number;
-  series: SeriesRow[];
-}
+import { ErrorBanner, FormRow, Segmented } from "../ui/index.js";
+import { getFleetSeries, type FleetSeries, type FleetSeriesRow as SeriesRow } from "../api/analysis.js";
 
 const DOMAINS: Array<{ id: string; label: string; leaves: Array<{ path: string; label: string }> }> = [
   { id: "gpu", label: "GPU", leaves: [{ path: "gpus.0.tempC", label: "temp °C" }, { path: "gpus.0.utilPct", label: "util %" }, { path: "gpus.0.watts", label: "watts" }, { path: "gpus.0.clockMhz", label: "clock MHz" }] },
@@ -61,9 +51,7 @@ export function FleetExplorerPage() {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch(`/api/metrics/fleet?domain=${domainId}&leaf=${encodeURIComponent(leaf)}&hours=${hours}`);
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      setData((await res.json()) as FleetSeries);
+      setData(await getFleetSeries(domainId, leaf, hours));
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -87,38 +75,47 @@ export function FleetExplorerPage() {
       <section className="panel">
         <div className="panel-head">
           <h2>Fleet explorer</h2>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {DOMAINS.map((d) => (
-              <button key={d.id} className={`btn sm ${domainId === d.id ? "primary" : ""}`} onClick={() => pickDomain(d.id)}>{d.label}</button>
-            ))}
+          <div className="right">
+            <Segmented
+              options={DOMAINS.map((d) => ({ value: d.id, label: d.label }))}
+              value={domainId}
+              onChange={pickDomain}
+              ariaLabel="Domain"
+            />
           </div>
         </div>
-        <div className="panel-body" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          {domain.leaves.length > 1 && (
-            <select value={leaf} onChange={(e) => setLeaf(e.target.value)} aria-label="Metric">
-              {domain.leaves.map((l) => (
-                <option key={l.path} value={l.path}>{l.label}</option>
+        <div className="panel-body">
+          <FormRow>
+            {domain.leaves.length > 1 && (
+              <select value={leaf} onChange={(e) => setLeaf(e.target.value)} aria-label="Metric">
+                {domain.leaves.map((l) => (
+                  <option key={l.path} value={l.path}>{l.label}</option>
+                ))}
+              </select>
+            )}
+            <select value={hours} onChange={(e) => setHours(Number(e.target.value))} aria-label="Range">
+              {RANGES.map((r) => (
+                <option key={r.hours} value={r.hours}>{r.label}</option>
               ))}
             </select>
-          )}
-          <select value={hours} onChange={(e) => setHours(Number(e.target.value))} aria-label="Range">
-            {RANGES.map((r) => (
-              <option key={r.hours} value={r.hours}>{r.label}</option>
-            ))}
-          </select>
-          <span className="hint">granularity: {data?.granularity ?? "…"}</span>
+            <span className="hint">granularity: {data?.granularity ?? "…"}</span>
+          </FormRow>
         </div>
-        {error && <div className="panel-body" style={{ color: "var(--crit)" }}>{error}</div>}
+        {error && (
+          <div className="panel-body">
+            <ErrorBanner error={error} />
+          </div>
+        )}
       </section>
 
       <section className="panel">
         <div className="panel-head"><h3>{domain.label} — {domain.leaves.find((l) => l.path === leaf)?.label ?? leaf}</h3></div>
-        <div className="panel-body" style={{ display: "grid", gap: 14 }}>
+        <div className="panel-body stack">
           {(data?.series ?? []).map((s, i) => {
             const last = s.points[s.points.length - 1]?.v;
             return (
               <div key={s.nodeId} data-testid={`fleet-chart-${s.nodeId}`}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <div className="row between">
                   <strong>{s.nodeId}</strong>
                   <span className="hint">last: {last != null ? last.toFixed(1) : "—"}</span>
                 </div>

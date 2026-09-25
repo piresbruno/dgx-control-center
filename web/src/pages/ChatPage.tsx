@@ -235,12 +235,12 @@ export function ChatPage() {
   const grouped = (folderId: string | null) => conversations.filter((c) => c.folderId === folderId);
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "300px minmax(0, 1fr)", gap: 12, alignItems: "start" }}>
+    <div className="chat-layout">
       {/* ── left rail: folders + conversations ── */}
-      <aside className="panel" style={{ display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 150px)" }}>
-        <div className="panel-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <aside className="panel chat-pane">
+        <div className="panel-head row between">
           <span>Chats</span>
-          <span style={{ display: "flex", gap: 6 }}>
+          <span className="chat-actions">
             <button className="btn" data-testid="chat-new-folder" onClick={() => setFolderDraft({ name: "", description: "" })}>
               + Folder
             </button>
@@ -249,9 +249,9 @@ export function ChatPage() {
             </button>
           </span>
         </div>
-        <div className="panel-body" style={{ overflowY: "auto" }}>
+        <div className="panel-body chat-pane-scroll">
           {folderDraft && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+            <div className="chat-stack mb-sm">
               <input
                 className="input"
                 placeholder="Folder name (e.g. Home infranet)"
@@ -265,7 +265,7 @@ export function ChatPage() {
                 value={folderDraft.description}
                 onChange={(e) => setFolderDraft({ ...folderDraft, description: e.target.value })}
               />
-              <span style={{ display: "flex", gap: 6 }}>
+              <span className="chat-actions">
                 <button className="btn primary" onClick={() => void createFolder()}>
                   Create
                 </button>
@@ -277,9 +277,9 @@ export function ChatPage() {
           )}
 
           {folders.map((folder) => (
-            <div key={folder.id} style={{ marginBottom: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <strong style={{ flex: 1 }}>
+            <div key={folder.id} className="chat-folder">
+              <div className="row">
+                <strong className="grow">
                   {folder.name} <span className="hint">({folder.conversationCount ?? 0})</span>
                 </strong>
                 <button
@@ -305,7 +305,7 @@ export function ChatPage() {
                 </button>
               </div>
               {editingFolder === folder.id && (
-                <span style={{ display: "flex", flexDirection: "column", gap: 6, margin: "6px 0" }}>
+                <span className="chat-stack my-sm">
                   <textarea
                     className="input"
                     rows={3}
@@ -313,7 +313,7 @@ export function ChatPage() {
                     data-testid={`folder-context-${folder.id}`}
                     onChange={(e) => setEditingFolderDraft(e.target.value)}
                   />
-                  <span style={{ display: "flex", gap: 6 }}>
+                  <span className="chat-actions">
                     <button className="btn primary" onClick={() => void saveFolderDescription(folder)}>
                       Save context
                     </button>
@@ -323,7 +323,7 @@ export function ChatPage() {
                   </span>
                 </span>
               )}
-              <div style={{ marginLeft: 8 }}>
+              <div className="chat-folder-list">
                 {grouped(folder.id).map((c) => (
                   <ConversationRow
                     key={c.id}
@@ -338,7 +338,7 @@ export function ChatPage() {
             </div>
           ))}
 
-          <div style={{ marginTop: 10 }}>
+          <div className="mt-sm">
             <strong>Ungrouped</strong>
             {grouped(null).map((c) => (
               <ConversationRow
@@ -355,9 +355,9 @@ export function ChatPage() {
       </aside>
 
       {/* ── main pane ── */}
-      <section className="panel" style={{ display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 150px)" }}>
+      <section className="panel chat-pane">
         {error && (
-          <div className="panel-body" style={{ paddingTop: 0 }}>
+          <div className="panel-body pt-0">
             <span className="pill crit" data-testid="chat-error">
               {error}
             </span>
@@ -369,8 +369,8 @@ export function ChatPage() {
           </div>
         ) : (
           <>
-            <div className="panel-head" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              <strong style={{ flex: 1, minWidth: 120 }}>{detail.conversation.title}</strong>
+            <div className="panel-head row wrap">
+              <strong className="chat-title">{detail.conversation.title}</strong>
               <label className="hint">
                 model{" "}
                 <select
@@ -407,12 +407,12 @@ export function ChatPage() {
               </button>
             </div>
             {detail.folder && detail.folder.description.trim().length > 0 && (
-              <div className="hint" style={{ padding: "0 14px" }} data-testid="folder-context-banner">
+              <div className="hint chat-context-banner" data-testid="folder-context-banner">
                 Project context: {detail.folder.description}
               </div>
             )}
 
-            <div ref={scroller} className="panel-body" style={{ overflowY: "auto", flex: 1 }} data-testid="chat-scroll">
+            <div ref={scroller} className="panel-body chat-pane-grow" data-testid="chat-scroll">
               {detail.messages.map((message) => (
                 <MessageBubble key={message.id} message={message} />
               ))}
@@ -426,15 +426,14 @@ export function ChatPage() {
               )}
             </div>
 
-            <div style={{ borderTop: "1px solid var(--line)", padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+            <div className="chat-composer">
               {pending.length > 0 && (
-                <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <span className="chat-attachments">
                   {pending.map((attachment, index) => (
                     <span key={`${attachment.name}-${index}`} className="chip">
                       {attachment.name} · {humanBytes(attachment.bytes)}
                       <button
                         className="btn"
-                        style={{ marginLeft: 6 }}
                         onClick={() => setPending((current) => current.filter((_, i) => i !== index))}
                       >
                         ✕
@@ -448,11 +447,10 @@ export function ChatPage() {
                   )}
                 </span>
               )}
-              <span style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+              <span className="row end">
                 <textarea
-                  className="input"
                   rows={2}
-                  style={{ flex: 1, resize: "vertical" }}
+                  className="grow"
                   placeholder="Message… (Enter to send, Shift+Enter for a newline)"
                   value={draft}
                   data-testid="chat-input"
@@ -469,7 +467,7 @@ export function ChatPage() {
                   type="file"
                   accept="image/*"
                   multiple
-                  style={{ display: "none" }}
+                  className="hidden"
                   data-testid="chat-file"
                   onChange={(e) => void pickFiles(e.target.files)}
                 />
@@ -505,10 +503,9 @@ function ConversationRow({
   onDelete: () => void;
 }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+    <div className="chat-conv-row">
       <button
-        className={active ? "nav-item active" : "nav-item"}
-        style={{ flex: 1, textAlign: "left" }}
+        className={active ? "nav-item active grow" : "nav-item grow"}
         data-testid={`chat-conv-${conversation.id}`}
         onClick={onOpen}
       >
@@ -527,14 +524,14 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   return (
     <div className={`chat-msg ${isUser ? "user" : "assistant"}`} data-testid={`chat-msg-${message.role}`}>
       {isUser ? (
-        <div style={{ whiteSpace: "pre-wrap" }}>{message.content}</div>
+        <div className="pre-wrap">{message.content}</div>
       ) : (
         <div className="md-body">
           {message.content.length > 0 ? <Markdown text={message.content} /> : <span className="hint">no content</span>}
         </div>
       )}
       {message.attachments && message.attachments.length > 0 && (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+        <div className="chat-attachments mt-sm">
           {message.attachments.map((attachment) => (
             <a
               key={attachment.id}
@@ -546,15 +543,15 @@ function MessageBubble({ message }: { message: ChatMessage }) {
                 src={(attachment as { previewUrl?: string }).previewUrl ?? `/api/chat/attachments/${attachment.id}`}
                 alt={attachment.name}
                 title={`${attachment.name} · ${humanBytes(attachment.bytes)}`}
-                style={{ height: 72, borderRadius: 6, border: "1px solid var(--line)" }}
+                className="chat-attach-thumb"
               />
             </a>
           ))}
         </div>
       )}
-      {message.error && <div className="pill crit" style={{ marginTop: 6 }}>{message.error}</div>}
+      {message.error && <div className="pill crit mt-sm">{message.error}</div>}
       {!isUser && message.usage && (
-        <div className="hint" style={{ marginTop: 4 }}>
+        <div className="hint mt-xs">
           {message.ttftMs != null ? `ttft ${message.ttftMs} ms · ` : ""}
           {message.durationMs != null ? `${message.durationMs} ms · ` : ""}
           {message.usage.promptTokens ?? "?"} in / {message.usage.completionTokens ?? "?"} out tokens

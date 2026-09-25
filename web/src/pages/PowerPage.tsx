@@ -12,6 +12,7 @@ import {
   type ScheduleRow,
   type ThermalStatus,
 } from "../api/power.js";
+import { ErrorBanner, Kpi, TableScroller } from "../ui/index.js";
 
 function kwh(n: number): string {
   return n >= 1 ? `${n.toFixed(2)} kWh` : `${(n * 1000).toFixed(0)} Wh`;
@@ -61,12 +62,16 @@ export function PowerCard({ sparkId }: { sparkId: string }) {
   };
 
   return (
-    <div style={{ display: "grid", gap: 8 }}>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+    <div className="stack tight">
+      {/* Mutually-exclusive profile picker; manual .segmented because each
+          button keeps disabled-during-apply and a description tooltip. */}
+      <div className="segmented wrap" role="group" aria-label="Power profile">
         {profiles.map((p) => (
           <button
             key={p.id}
-            className={`btn sm ${mine?.desired === p.id ? "primary" : ""}`}
+            type="button"
+            className={mine?.desired === p.id ? "active" : ""}
+            aria-pressed={mine?.desired === p.id}
             disabled={busy}
             title={p.description}
             onClick={() => void apply(p.id)}
@@ -77,14 +82,14 @@ export function PowerCard({ sparkId }: { sparkId: string }) {
           </button>
         ))}
       </div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      <div className="form-row">
         <span className={`pill ${thermalState === "nominal" ? "ok" : "crit"}`}>
           <span className="dot" />thermal: {thermalState}
         </span>
         {schedule && <span className="pill info"><span className="dot" />schedule · {schedule.tz}</span>}
         {mine?.resolved?.clamped && <span className="pill warn"><span className="dot" />hw-clamped</span>}
       </div>
-      {error && <div style={{ color: "var(--crit)" }}>{error}</div>}
+      <ErrorBanner error={error} />
     </div>
   );
 }
@@ -132,7 +137,7 @@ export function EnergyPage() {
       <section className="panel">
         <div className="panel-head">
           <h2>Energy</h2>
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <div className="right">
             <select value={windowHours} onChange={(e) => setWindowHours(Number(e.target.value))} aria-label="Window">
               <option value={24}>24 h</option>
               <option value={168}>7 d</option>
@@ -141,22 +146,22 @@ export function EnergyPage() {
             <button className="btn sm" onClick={exportCsv}>Export CSV</button>
           </div>
         </div>
-        <div className="panel-body" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
-          <div className="panel kpi">
-            <div className="label">total energy</div>
-            <div className="value">{summary ? kwh(summary.totalKwh) : "—"}</div>
-          </div>
-          <div className="panel kpi">
-            <div className="label">total cost</div>
-            <div className="value">{summary ? summary.totalCost.toFixed(2) : "—"}</div>
+        <div className="panel-body">
+          <div className="grid cols-2">
+            <Kpi label="total energy" value={summary ? kwh(summary.totalKwh) : "—"} />
+            <Kpi label="total cost" value={summary ? summary.totalCost.toFixed(2) : "—"} />
           </div>
         </div>
-        {error && <div className="panel-body" style={{ color: "var(--crit)" }}>{error}</div>}
+        {error && (
+          <div className="panel-body">
+            <ErrorBanner error={error} />
+          </div>
+        )}
       </section>
 
       <section className="panel">
         <div className="panel-head"><h3>Per node</h3></div>
-        <div className="panel-body flush">
+        <TableScroller>
           <table className="table" data-testid="energy-nodes">
             <thead><tr><th>Node</th><th>kWh (window)</th><th>Cost</th></tr></thead>
             <tbody>
@@ -170,21 +175,24 @@ export function EnergyPage() {
               {summary && byNode.size === 0 && <tr><td colSpan={3} className="hint">No power samples in this window.</td></tr>}
             </tbody>
           </table>
-        </div>
+        </TableScroller>
       </section>
 
       <section className="panel">
         <div className="panel-head">
           <h3>Rollup</h3>
-          <div style={{ display: "flex", gap: 6 }}>
-            {(["hourly", "daily", "monthly"] as const).map((b) => (
-              <button key={b} className={`btn sm ${bucket === b ? "primary" : ""}`} onClick={() => setBucket(b)} data-testid={`bucket-${b}`}>
-                {b}
-              </button>
-            ))}
+          <div className="right">
+            {/* Manual .segmented: per-button data-testid="bucket-*" must survive. */}
+            <div className="segmented" role="group" aria-label="Rollup bucket">
+              {(["hourly", "daily", "monthly"] as const).map((b) => (
+                <button key={b} type="button" className={bucket === b ? "active" : ""} aria-pressed={bucket === b} onClick={() => setBucket(b)} data-testid={`bucket-${b}`}>
+                  {b}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-        <div className="panel-body flush" style={{ overflowX: "auto", maxHeight: 380 }}>
+        <TableScroller maxHeight={380}>
           <table className="table" data-testid="energy-rollup">
             <thead><tr><th>bucket (UTC)</th><th>node</th><th>kWh</th><th>cost</th><th>minutes</th></tr></thead>
             <tbody>
@@ -200,7 +208,7 @@ export function EnergyPage() {
               {summary && (summary[bucket] ?? []).length === 0 && <tr><td colSpan={5} className="hint">No samples.</td></tr>}
             </tbody>
           </table>
-        </div>
+        </TableScroller>
       </section>
     </>
   );

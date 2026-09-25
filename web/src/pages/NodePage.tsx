@@ -3,6 +3,7 @@ import type { LiveNode } from "../api/ws.js";
 import { nodeSummary, statusPill } from "../App.js";
 import { listDeployments, type DeploymentRecord } from "../api/serving.js";
 import { PowerCard } from "./PowerPage.js";
+import { EmptyState, TableScroller } from "../ui/index.js";
 
 export interface NodePageProps {
   node: LiveNode | null;
@@ -17,9 +18,9 @@ export function NodePage({ node, nodes, history, onSelectNode }: NodePageProps) 
       <>
         <div className="page-head"><div className="page-title"><h1>Nodes</h1></div></div>
         <div className="panel"><div className="panel-body"><div className="empty">Select a node on the Overview page.</div></div></div>
-        <div className="grid cols-3" style={{ marginTop: 18 }}>
+        <div className="grid cols-3 mt">
           {nodes.map((n) => (
-            <button key={n.sparkId} className="panel node-card" style={{ cursor: "pointer" }} onClick={() => onSelectNode(n.sparkId)}>
+            <button key={n.sparkId} className="panel node-card clickable" onClick={() => onSelectNode(n.sparkId)}>
               <div className="head"><div className="name">{n.name}</div>{statusPill(n.state)}</div>
             </button>
           ))}
@@ -52,7 +53,7 @@ export function NodePage({ node, nodes, history, onSelectNode }: NodePageProps) 
         <Kpi label="Power" value={wattsOr(power?.["watts"])} delta={storage ? `${storage["freeGb"]} GB free` : "—"} />
       </div>
 
-      <div className="grid cols-3" style={{ marginTop: 18 }}>
+      <div className="grid cols-3 mt">
         <Panel title="GPU">
           <GaugeRow label="util" value={pctOr(gpu?.["utilPct"])} />
           <GaugeRow label="mem" value={mbPctOr(gpu?.["memUsedMb"], gpu?.["memTotalMb"])} />
@@ -69,7 +70,7 @@ export function NodePage({ node, nodes, history, onSelectNode }: NodePageProps) 
 
       <NodeServingBays sparkId={node.sparkId} />
 
-      <div className="note">◈ Live values from the agent snapshot feed; history charts attach to the SQLite query API (M1+).</div>
+      <div className="note">◈ Live values from the agent snapshot feed.</div>
     </>
   );
 }
@@ -98,7 +99,7 @@ function NodeServingBays({ sparkId }: { sparkId: string }) {
         <h3>Engine bays</h3>
         <span className="pill info"><span className="dot" />{deployments?.length ?? "…"}</span>
       </div>
-      <div className="panel-body flush">
+      <TableScroller>
         <table className="table">
           <thead>
             <tr>
@@ -112,22 +113,22 @@ function NodeServingBays({ sparkId }: { sparkId: string }) {
               <tr key={d.id}>
                 <td>
                   <strong>{d.servedName ?? d.recipeId}</strong>
-                  <div className="hint" style={{ fontSize: 11 }}>port {d.port ?? "?"} · desired {d.desired}</div>
+                  <div className="cell-sub">port {d.port ?? "?"} · desired {d.desired}</div>
                 </td>
                 <td>
                   <span className={`pill ${d.state.state === "healthy" ? "ok" : d.state.state === "stopped" ? "info" : "warn"}`}>
                     <span className="dot" />{d.state.state}
                   </span>
                 </td>
-                <td>{d.port != null ? <code style={{ fontSize: 11.5 }}>/llm/node/{d.sparkId}/{d.port}</code> : "—"}</td>
+                <td>{d.port != null ? <code className="small">/llm/node/{d.sparkId}/{d.port}</code> : "—"}</td>
               </tr>
             ))}
             {deployments && deployments.length === 0 && (
-              <tr><td colSpan={3} className="empty">No engines deployed on this node.</td></tr>
+              <tr><td colSpan={3}><EmptyState>No engines deployed on this node.</EmptyState></td></tr>
             )}
           </tbody>
         </table>
-      </div>
+      </TableScroller>
     </section>
   );
 }
@@ -153,7 +154,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 
 function GaugeRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="row between" style={{ padding: "6px 0", borderBottom: "1px solid var(--hairline)" }}>
+    <div className="row between detail-row">
       <span className="tiny dim">{label}</span>
       <span className="tiny num strong">{value}</span>
     </div>

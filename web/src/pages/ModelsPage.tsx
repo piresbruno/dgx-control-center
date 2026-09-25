@@ -14,30 +14,25 @@ import {
   type JobRecord,
   type ModelRow,
 } from "../api/models.js";
+import { Callout, DetailList, ErrorBanner, Field, FormGrid, FormRow, Segmented, TableScroller } from "../ui/index.js";
+import { listNodes, type NodeRecord } from "../api/nodes.js";
 
 type Tab = "catalog" | "presence" | "downloads";
 
-interface NodeInfo {
-  id: string;
-  name: string;
-  kind: string;
-  lanIp: string | null;
-  sshUser: string | null;
-}
 
 const POLL_MS = 2_000;
 
 export function ModelsPage() {
   const [tab, setTab] = useState<Tab>("catalog");
-  const [nodes, setNodes] = useState<NodeInfo[]>([]);
+  const [nodes, setNodes] = useState<NodeRecord[]>([]);
   const [nas, setNas] = useState<InventorySnapshot | null>(null);
   const [selected, setSelected] = useState<ModelRow | null>(null);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    void fetch("/api/nodes")
-      .then((r) => r.json())
-      .then((d: { nodes: NodeInfo[] }) => setNodes(d.nodes.filter((n) => n.kind !== "nas")));
+    void listNodes()
+      .then((d) => setNodes(d.nodes.filter((n) => n.kind !== "nas")))
+      .catch(() => undefined);
     void getNasModels().then(setNas).catch(() => setNas(null));
   }, []);
 
@@ -49,22 +44,25 @@ export function ModelsPage() {
   );
 
   return (
-    <div className="page" data-testid="models-page">
+  <div data-testid="models-page">
       <header className="page-head">
-        <div>
+        <div className="page-title">
           <h2>Models</h2>
           <p className="sub">
             NAS store{nas ? ` · ${nas.models.length} active` : ""} — inventory, placement, transfers
             {nas?.stale ? " (stale)" : ""}
           </p>
         </div>
-        <div className="right">
-          {(["catalog", "presence", "downloads"] as const).map((t) => (
-            <button key={t} className={`btn ${tab === t ? "primary" : ""}`} onClick={() => setTab(t)}>
-              {t[0]!.toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
+        <Segmented<Tab>
+          ariaLabel="Models view"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "catalog", label: "Catalog" },
+            { value: "presence", label: "Presence" },
+            { value: "downloads", label: "Downloads" },
+          ]}
+        />
       </header>
 
       <DoctorRow nodes={nodes} />
@@ -78,7 +76,7 @@ export function ModelsPage() {
   );
 }
 
-function DoctorRow({ nodes }: { nodes: NodeInfo[] }) {
+function DoctorRow({ nodes }: { nodes: NodeRecord[] }) {
   const [checks, setChecks] = useState<Record<string, CheckOutcome | "loading">>({});
   const [provisioning, setProvisioning] = useState<string | null>(null);
 
@@ -104,16 +102,18 @@ function DoctorRow({ nodes }: { nodes: NodeInfo[] }) {
   };
 
   return (
-    <div className="doctor-row" style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "10px 0 16px" }}>
+    <div className="doctor-row">
       {nodes.map((node) => {
         const check = checks[node.id];
         const outcome = check === "loading" || check === undefined ? null : check;
         return (
-          <span key={node.id} className={`pill ${outcome ? (outcome.ok ? "ok" : "crit") : "info"}`} data-testid={`doctor-${node.id}`}>
-            <span className="dot" />
-            {node.name}: {outcome === null ? "checking…" : outcome.ok ? `modelctl ${outcome.version ?? ""}` : (outcome.reason ?? "unreachable")}
+          <span key={node.id} className="row">
+            <span className={`pill ${outcome ? (outcome.ok ? "ok" : "crit") : "info"}`} data-testid={`doctor-${node.id}`}>
+              <span className="dot" />
+              {node.name}: {outcome === null ? "checking…" : outcome.ok ? `modelctl ${outcome.version ?? ""}` : (outcome.reason ?? "unreachable")}
+            </span>
             {outcome !== null && !outcome.ok && (
-              <button className="btn" style={{ marginLeft: 8 }} disabled={provisioning === node.id} onClick={() => void provision(node.id)}>
+              <button className="btn" disabled={provisioning === node.id} onClick={() => void provision(node.id)}>
                 {provisioning === node.id ? "installing…" : "Install"}
               </button>
             )}
@@ -131,7 +131,7 @@ function CatalogTab(props: {
   setSearch: (s: string) => void;
   selected: ModelRow | null;
   setSelected: (m: ModelRow | null) => void;
-  nodes: NodeInfo[];
+  nodes: NodeRecord[];
 }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr)", gap: 16 }}>
@@ -143,9 +143,9 @@ function CatalogTab(props: {
             <input placeholder="Filter…" value={props.search} onChange={(e) => props.setSearch(e.target.value)} />
           </div>
         </div>
-        <div className="panel-body flush">
+        <div className={props.error ? "panel-body" : "panel-body flush"}>
           {props.error ? (
-            <div style={{ padding: 18, color: "var(--crit)" }}>Store inventory failed — {props.error}</div>
+            <Callout kind="crit">Store inventory failed — {props.error}</Callout>
           ) : (
             <table className="table" data-testid="catalog-table">
               <thead>
@@ -153,21 +153,21 @@ function CatalogTab(props: {
                   <th>Name</th>
                   <th>Runtime</th>
                   <th>Repository</th>
-                  <th style={{ textAlign: "right" }}>Size</th>
+                  <th className="num">Size</th>
                 </tr>
               </thead>
               <tbody>
                 {props.catalog.map((m) => (
                   <tr
                     key={m.name}
+                    className={props.selected?.name === m.name ? "clickable selected" : "clickable"}
                     onClick={() => props.setSelected(m)}
-                    style={{ cursor: "pointer", background: props.selected?.name === m.name ? "var(--raised)" : undefined }}
                     data-testid={`catalog-${m.name}`}
                   >
                     <td>{m.name}</td>
                     <td>{m.runtime ?? "—"}</td>
-                    <td style={{ color: "var(--text-3)" }}>{m.repository}</td>
-                    <td style={{ textAlign: "right" }}>{humanBytes(m.bytes)}</td>
+                    <td className="faint">{m.repository}</td>
+                    <td className="num">{humanBytes(m.bytes)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -182,16 +182,18 @@ function CatalogTab(props: {
         </div>
         <div className="panel-body">
           {props.selected ? (
-            <>
-              <strong style={{ fontSize: 14 }}>{props.selected.name}</strong>
-              <dl style={{ marginTop: 10, display: "grid", gap: 6, fontSize: 12.5 }}>
-                <div>Repository: {props.selected.repository}</div>
-                <div>Runtime: {props.selected.runtime ?? "unknown"}</div>
-                <div>Size: {humanBytes(props.selected.bytes)}</div>
-              </dl>
-            </>
+            <div className="stack tight">
+              <strong>{props.selected.name}</strong>
+              <DetailList
+                items={[
+                  { label: "Repository", value: props.selected.repository, mono: false },
+                  { label: "Runtime", value: props.selected.runtime ?? "unknown" },
+                  { label: "Size", value: humanBytes(props.selected.bytes) },
+                ]}
+              />
+            </div>
           ) : (
-            <span style={{ color: "var(--text-3)" }}>Select a model from the catalog.</span>
+            <div className="faint">Select a model from the catalog.</div>
           )}
         </div>
       </section>
@@ -199,7 +201,7 @@ function CatalogTab(props: {
   );
 }
 
-function PresenceTab({ nodes, catalog }: { nodes: NodeInfo[]; catalog: ModelRow[] }) {
+function PresenceTab({ nodes, catalog }: { nodes: NodeRecord[]; catalog: ModelRow[] }) {
   const [presence, setPresence] = useState<Record<string, Set<string>>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -248,8 +250,12 @@ function PresenceTab({ nodes, catalog }: { nodes: NodeInfo[]; catalog: ModelRow[
           <button className="btn" onClick={() => void refresh()}>Refresh</button>
         </div>
       </div>
-      {message && <div className="panel-body" style={{ paddingBottom: 0, color: "var(--info)" }}>{message}</div>}
-      <div className="panel-body flush" style={{ overflowX: "auto" }}>
+      {message && (
+        <div className="panel-body">
+          <Callout kind="info">{message}</Callout>
+        </div>
+      )}
+      <TableScroller>
         <table className="table" data-testid="presence-matrix">
           <thead>
             <tr>
@@ -269,7 +275,7 @@ function PresenceTab({ nodes, catalog }: { nodes: NodeInfo[]; catalog: ModelRow[
                   return (
                     <td key={n.id}>
                       {present ? (
-                        <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                        <span className="row">
                           <span className="pill ok"><span className="dot" />present</span>
                           <button
                             className="btn"
@@ -281,7 +287,7 @@ function PresenceTab({ nodes, catalog }: { nodes: NodeInfo[]; catalog: ModelRow[
                           </button>
                         </span>
                       ) : (
-                        <span style={{ display: "inline-flex", gap: 6 }}>
+                        <span className="row">
                           <button
                             className="btn"
                             disabled={cellBusy}
@@ -314,12 +320,12 @@ function PresenceTab({ nodes, catalog }: { nodes: NodeInfo[]; catalog: ModelRow[
             ))}
           </tbody>
         </table>
-      </div>
+      </TableScroller>
     </section>
   );
 }
 
-function DownloadsTab({ nodes }: { nodes: NodeInfo[] }) {
+function DownloadsTab({ nodes }: { nodes: NodeRecord[] }) {
   const [source, setSource] = useState("");
   const [target, setTarget] = useState(nodes[0]?.id ?? "");
   const [jobs, setJobs] = useState<JobRecord[]>([]);
@@ -365,47 +371,54 @@ function DownloadsTab({ nodes }: { nodes: NodeInfo[] }) {
         <h3>Download queue</h3>
         <span className="sub">Hugging Face → NAS store (modelctl download)</span>
       </div>
-      <div className="panel-body" style={{ display: "grid", gap: 12 }}>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <input
-            placeholder="owner/model or huggingface.co URL"
-            value={source}
-            onChange={(e) => setSource(e.target.value)}
-            style={{ flex: "1 1 280px" }}
-            data-testid="download-source"
-          />
-          <select value={target} onChange={(e) => setTarget(e.target.value)}>
-            {nodes.map((n) => (
-              <option key={n.id} value={n.id}>
-                {n.name}
-              </option>
-            ))}
-          </select>
-          <button className="btn primary" disabled={!source.trim() || !target} onClick={() => void submit()} data-testid="download-submit">
-            Download
-          </button>
-        </div>
-        {error && <div style={{ color: "var(--crit)" }}>{error}</div>}
-        {jobs.length === 0 && <span style={{ color: "var(--text-3)" }}>No modelctl jobs yet.</span>}
+      <div className="panel-body stack">
+        <FormGrid>
+          <Field label="Source" htmlFor="download-source-field">
+            <input
+              id="download-source-field"
+              className="grow"
+              placeholder="owner/model or huggingface.co URL"
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+              data-testid="download-source"
+            />
+          </Field>
+          <Field label="Target node" htmlFor="download-target-node">
+            <FormRow>
+              <select id="download-target-node" className="w-md" value={target} onChange={(e) => setTarget(e.target.value)}>
+                {nodes.map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.name}
+                  </option>
+                ))}
+              </select>
+              <button className="btn primary" disabled={!source.trim() || !target} onClick={() => void submit()} data-testid="download-submit">
+                Download
+              </button>
+            </FormRow>
+          </Field>
+        </FormGrid>
+        <ErrorBanner error={error} />
+        {jobs.length === 0 && <div className="faint">No modelctl jobs yet.</div>}
         {jobs.map((job) => (
-          <div key={job.reqId} className="panel" style={{ padding: 12 }} data-testid={`job-${job.reqId}`}>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-              <span className={`pill ${job.state === "running" ? "info" : job.state === "done" ? "ok" : "crit"}`}>
-                <span className="dot" />
-                {job.state}
+          <div key={job.reqId} className="panel panel-body stack tight" data-testid={`job-${job.reqId}`}>
+            <div className="row between">
+              <span className="row">
+                <span className={`pill ${job.state === "running" ? "info" : job.state === "done" ? "ok" : "crit"}`}>
+                  <span className="dot" />
+                  {job.state}
+                </span>
+                <strong className="small">{job.argv.join(" ")}</strong>
+                <span className="faint small">on {job.nodeId}</span>
               </span>
-              <strong style={{ fontSize: 12.5 }}>{job.argv.join(" ")}</strong>
-              <span style={{ color: "var(--text-3)", fontSize: 12 }}>on {job.nodeId}</span>
-              <div className="right" style={{ marginLeft: "auto" }}>
-                {job.state === "running" && (
-                  <button className="btn" onClick={() => void cancelJob(job.reqId).then(() => void refresh())}>
-                    Cancel
-                  </button>
-                )}
-              </div>
+              {job.state === "running" && (
+                <button className="btn" onClick={() => void cancelJob(job.reqId).then(() => void refresh())}>
+                  Cancel
+                </button>
+              )}
             </div>
             {job.output && (
-              <pre style={{ margin: 0, maxHeight: 180, overflow: "auto", fontSize: 11.5, whiteSpace: "pre-wrap" }}>
+              <pre className="code-block code-block--job">
                 {job.output + (job.truncated ? "\n… truncated" : "")}
               </pre>
             )}
