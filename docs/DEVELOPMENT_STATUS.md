@@ -1,6 +1,6 @@
 # Development Status — pick-up-elsewhere note
 
-_Last updated: 2026-09-25. Branch `main`. 327 tests, ~85 % lines coverage (gate 75 %), `.agentic/bin/validate` green, Playwright e2e (6 specs) green on the fake fleet._
+_Last updated: 2026-09-25. Branch `main`. 348 tests, ~85 % lines coverage (gate 75 %), `.agentic/bin/validate` green, Playwright e2e (9 tests incl. the mock-seam guard) green on the fake fleet._
 
 ## Where we are
 
@@ -30,6 +30,13 @@ Proxy body limits: gateway `/v1/*` and the chat message route share `PROXY_BODY_
 - Context: the conversation's folder description becomes a leading `system` message; images become `image_url` content parts replayed from SQLite on later turns; images are refused (`400` + `visionAliases`) unless the conversation's alias is marked `vision` (set it via `POST /api/gateway/served-models {vision:true}`).
 - Live gate evidence (2026-09-24): `qwen3-0.6b` on dgx2 served via the real supervisor; streamed answer used a fact that existed only in the folder description (`ORION-7`); second turn returned engine usage (`114 in / 48 out`) with `ttft 256 ms`; traces show `dashboard-chat`; folder/description/messages survived a container restart.
 
+### CC-1 Design system + full mock fleet (done, 2026-09-25)
+
+- **Pulse DS**: tokens (`--s1…--s8`, `--ctl-h`, `--bg-2/--fg-2`), global form-control styling (`select` custom chevron), layout utilities and `.form-grid`/`.callout`/`.toolbar`/`.empty` in `pulse.css`; React primitives in `web/src/ui/` (Field, Segmented, Toolbar, Callout, EmptyState, Kpi, DetailList, KeyBlock, DataTable bits); dev-only **/styleguide** page is the live inventory. Contract + hard rules: `docs/DESIGN_SYSTEM.md` (indexed T1 in AGENTS.md when a task touches `web/`).
+- **Data seam**: `web/src/api/client.ts` is the only fetch layer; all 13 pages go through `web/src/api/*` domain modules (no raw `fetch` or local `json()` helpers in pages anymore).
+- **Mock dataset**: `--fake-fleet` now also seeds every previously-empty surface via `server/src/mockData.ts` — gateway clients + ~40 traces (5xx/slow tails), recipes/deployments with coherent probes, served-models (glm-live vision:true), firing+resolved alerts on real rule ids, 7-day gpu-only energy backfill, a chat conversation — deterministic and idempotent. Zero mock logic in `web/`: dropping the flag yields honest empty states (asserted both ways by `e2e/mock-seam.spec.ts`).
+- Fleet-specific copy (`dgx1:8081`, `cc.home.local`, "2× DGX … QNAP") removed from product paths; Overview sub-line and the Router placeholders derive from live data.
+
 ## Live stack topology (as deployed on dgx-1)
 
 - **Dashboard runs via `docker compose up -d --build`** on port **5566** (5555 is banned — sparkControl uses it). Bind mount `./config/` holds all durable state: `nodes.json`, `desired-state.json`, `serve-recipes.json`, `serve-deployments.json`, `served-models.json`, `clients.json`, `clock-profiles.json`, `clock-schedules.json`, `thermal-state.json`, `settings.json`, `controlcenter.db`.
@@ -41,7 +48,7 @@ Proxy body limits: gateway `/v1/*` and the chat message route share `PROXY_BODY_
 
 ## First things to do on a new machine
 
-1. `npm install` then `npm run build` (tsc) and `npm test` — expect **335 passing**.
+1. `npm install` then `npm run build` (tsc) and `npm test` — expect **348 passing**.
 2. `npm run test:e2e` (Playwright; boots its own fake-fleet API + Vite on scratch ports 5599/5199).
 3. `docker compose up -d --build` — restore `config/` from backup for existing state, or seed `config/nodes.json` fresh (see README quickstart; `createdAt` is required — or skip seeding and add nodes from **Settings → Nodes**).
 4. Agents: start both per the topology above; they self-adopt server config from `welcome`/`config-update`.

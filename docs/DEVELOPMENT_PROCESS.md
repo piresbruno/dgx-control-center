@@ -39,6 +39,7 @@ Routine refactors and local implementation details do not require ADRs.
 - Keep the change focused and consistent with established patterns.
 - Avoid unrelated cleanup.
 - Keep one writer for overlapping files when agents are used.
+- For changes under `web/src/`, follow `docs/DESIGN_SYSTEM.md`: compose `pulse.css` classes and the `web/src/ui` primitives instead of authoring page-level CSS.
 - Never hide failures by weakening tests or security controls.
 
 ## 5. Validate

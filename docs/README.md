@@ -11,5 +11,6 @@ Read only the document relevant to the current task.
 
 ## When needed
 
+- [Design system](DESIGN_SYSTEM.md) — Pulse tokens, primitives, and hard rules. Read before touching `web/src/` or `pulse.css`.
 - [Platform support](PLATFORM_SUPPORT.md) — coding-agent capabilities and generated artifacts.
 - [Releasing](RELEASING.md) — Semantic Versioning, release validation, and Git tags.

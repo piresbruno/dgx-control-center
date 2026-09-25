@@ -16,7 +16,7 @@ Treat values marked “Not configured” or “Not detected” as unknown. Inspe
 
 1. Read the current task and the minimum relevant documentation before editing.
 2. Confirm ambiguous requirements and high-impact decisions with the user.
-3. Keep changes focused, simple, and consistent with existing conventions.
+3. Keep changes focused, simple, and consistent with existing conventions; UI changes follow `docs/DESIGN_SYSTEM.md`.
 4. Add or update tests for behavior changes.
 5. Run the configured validation, test, and build commands when applicable.
 6. Update documentation when public behavior, architecture, configuration, or operations change.
@@ -32,6 +32,7 @@ Do not load all project documentation preemptively.
 |---|---|---|
 | T0 | This file | Always |
 | T1 | `docs/README.md`, `docs/DEVELOPMENT_PROCESS.md`, and the current task file | Starting implementation work |
+| T1 | `docs/DESIGN_SYSTEM.md` | The task touches `web/src/` or `web/src/styles/pulse.css` |
 | T2 | `docs/ARCHITECTURE.md` and `docs/adr/README.md` | The task changes architecture or asks why the system works a certain way |
 | T3 | Matching Proposed or Accepted ADRs, or `docs/RELEASING.md` | Their scope, tags, components, decision, or a release is relevant |
 | T4 | Rejected, Deprecated, or Superseded ADRs and historical specifications | Auditing history or resolving conflicting guidance |

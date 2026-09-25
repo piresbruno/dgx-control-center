@@ -64,87 +64,88 @@ for; documented in the design-system doc.
 ## Plan
 
 ### P0 — Baseline and harness (0.5 d)
-- [ ] Boot `--fake-fleet`, screenshot all 13 pages light @1568 as the "before"
-      set (reused after each phase).
-- [ ] Confirm every page fetches via `web/src/api/*` only (grep for raw
+- [x] Boot `--fake-fleet`, screenshot all 13 pages light @1568 as the "before"
+      set (reused after each phase). — done via `cc-ui-visual-review` boot on :5599.
+- [x] Confirm every page fetches via `web/src/api/*` only (grep for raw
       `fetch(` outside that layer; fix leaks) — the seam requirement.
 
 ### P1 — Design-system foundation in `pulse.css` (1 d)
-- [ ] Tokens: spacing scale `--s1…--s8` (4→32 px), control heights
+- [x] Tokens: spacing scale `--s1…--s8` (4→32 px), control heights
       (`--ctl-h: 32px`, `--ctl-h-sm: 26px`), shadow set, focus ring
       (`outline: 2px solid var(--accent)` on `:focus-visible`), and define
       `--bg-2`/`--fg-2` (terminal surfaces) for real.
-- [ ] Global form reset: `input, select, textarea` styled by default (drop the
+- [x] Global form reset: `input, select, textarea` styled by default (drop the
       per-element `className="input"` burden; keep the class as alias);
       `select { appearance: none }` + inline-SVG chevron + hover/focus states.
-- [ ] Layout utilities: `.row`, `.row-between`, `.stack`, `.wrap`, `.grow`,
+- [x] Layout utilities: `.row`, `.row-between`, `.stack`, `.wrap`, `.grow`,
       `.gap-*` — replaces repeated inline flex blocks.
-- [ ] `.toolbar` (page action bars), `.form-grid` (aligned label/control forms,
+- [x] `.toolbar` (page action bars), `.form-grid` (aligned label/control forms,
       `.field` becomes its row with vertical + inline variants), `.spacer`.
-- [ ] `.callout` (ok/info/warn/crit) for all message/error banners; `.col-act`
+- [x] `.callout` (ok/info/warn/crit) for all message/error banners; `.col-act`
       (right-aligned action cells), `.cell-sub` (hint line under table names).
-- [ ] Empty-state pattern (`.empty` + `.empty-action` for guidance copy).
-- [ ] Remove the undefined-class debt: `.row`/`.between`/`.doctor-row` defined
+- [x] Empty-state pattern (`.empty` + `.empty-action` for guidance copy).
+- [x] Remove the undefined-class debt: `.row`/`.between`/`.doctor-row` defined
       or their usages replaced; `pre.code-block` for consoles/key reveals.
-- [ ] Mobile rules extended to every new utility; dark-theme spot check.
+- [x] Mobile rules extended to every new utility; dark-theme spot check.
 
 ### P2 — Shared React primitives + styleguide (1 d)
-- [ ] `web/src/ui/`: `Field`, `Segmented`, `Toolbar`, `Callout`, `EmptyState`,
+- [x] `web/src/ui/`: `Field`, `Segmented`, `Toolbar`, `Callout`, `EmptyState`,
       `DataTable` (table + sticky header + `.col-act`), `Kpi`, `DetailList`,
       `KeyBlock` (one-time secret reveal), `FormRow`. Thin: they render the
       P1 classes; no styling logic in JS.
-- [ ] Dev-only **/styleguide** page rendering every token/primitive/state
+- [x] Dev-only **/styleguide** page rendering every token/primitive/state
       (light+dark). Doubles as the agent's visual contract and the review
       target for screenshot passes.
-- [ ] Replace hardcoded product copy: Overview sub-line derived from live
+- [x] Replace hardcoded product copy: Overview sub-line derived from live
       node directory (`N nodes · gateway /v1`), brand env from `/api/health`
       config, Router default target `—` placeholder (no `dgx1:8081`).
 
 ### P3 — Page-by-page refactor (1.5 d) — user-called-out first
-- [ ] **Settings**: every panel body becomes `.form-grid`; capture checkbox
+- [x] **Settings**: every panel body becomes `.form-grid`; capture checkbox
       gets label styling; nodes registry rows become `.table`; system actions
       into `.toolbar`; retention number inputs aligned on the same grid.
-- [ ] **Alerts**: rule builder → two-row `.form-grid` (name / source / metric,
+- [x] **Alerts**: rule builder → two-row `.form-grid` (name / source / metric,
       then op / value / hold / severity / save), all controls shared height;
       Active/All toggle → `.segmented`; three tables via `DataTable`.
-- [ ] **Fleet explorer**: domain picker → `.segmented`; metric + range selects
+- [x] **Fleet explorer**: domain picker → `.segmented`; metric + range selects
       styled; chart legend rows use `.row-between` + `.cell-sub`.
-- [ ] **Clients**: create form → `.form-grid`; `KeyBlock` with the defined
+- [x] **Clients**: create form → `.form-grid`; `KeyBlock` with the defined
       terminal tokens; scopes as `.chip`s in a fixed column; revoke confirm
       inline via `.callout warn`.
-- [ ] **Pass over remaining pages**: Overview, Node, Models, Serve, Recipes,
+- [x] **Pass over remaining pages**: Overview, Node, Models, Serve, Recipes,
       Router, Analysis, Energy, Chat — replace inline layout with P1/P2
       primitives, banners → `.callout`, filter inputs → `.input` default.
-- [ ] Copy sweep: imperative labels, consistent capitalization, no "…" stubs.
+- [x] Copy sweep: imperative labels, consistent capitalization, no "…" stubs.
 
 ### P4 — Mock dataset for every surface (1 d)
-- [ ] `server/src/mockData.ts` (fake-fleet mode only): 4 gateway clients with
+- [x] `server/src/mockData.ts` (fake-fleet mode only): 4 gateway clients with
       usage rows; ~40 request traces across 24 h incl. 5xx + slow TTFT; 1
       firing alert + 1 resolved + history events; energy rollups (hourly/
       daily/monthly, 2 nodes); 5-model store inventory + presence + 1
       completed/1 failed job; 2 recipes + 1 deployment with pass-through.
-- [ ] Deterministic seed (fixed PRNG) so screenshots and e2e stay stable.
-- [ ] e2e spec: each previously-empty page now shows seeded rows (guards the
+- [x] Deterministic seed (fixed PRNG) so screenshots and e2e stay stable.
+- [x] e2e spec: each previously-empty page now shows seeded rows (guards the
       seam: real mode must show its own empty states — assert both).
-- [ ] Verify `npm run dev` (no flag) still renders honest empty states.
+      (`e2e/mock-seam.spec.ts`)
+- [x] Verify `npm run dev` (no flag) still renders honest empty states.
 
 ### P5 — Progressive-disclosure documentation (0.5 d)
-- [ ] **`docs/DESIGN_SYSTEM.md`** (new, T1): token tables, primitive inventory,
+- [x] **`docs/DESIGN_SYSTEM.md`** (new, T1): token tables, primitive inventory,
       hard rules (no inline color/margin/width; forms use `.form-grid`; pages
       fetch via `web/src/api/*`; mocks only via `--fake-fleet`), per-page
       checklist, screenshot procedure.
-- [ ] **AGENTS.md**: T1 row points at DESIGN_SYSTEM.md when the task touches
+- [x] **AGENTS.md**: T1 row points at DESIGN_SYSTEM.md when the task touches
       `web/`; Working Agreement gains one line: UI changes follow it.
-- [ ] **docs/README.md**: add to "When needed" tier (task touches `web/src` or
+- [x] **docs/README.md**: add to "When needed" tier (task touches `web/src` or
       `pulse.css`).
-- [ ] **docs/DEVELOPMENT_PROCESS.md** §Implement: design-system bullet.
-- [ ] `pulse.css` header comment: pointer to the doc + styleguide route.
-- [ ] Update `docs/DEVELOPMENT_STATUS.md` + `.agentic/bin/docs-check` green.
+- [x] **docs/DEVELOPMENT_PROCESS.md** §Implement: design-system bullet.
+- [x] `pulse.css` header comment: pointer to the doc + styleguide route.
+- [x] Update `docs/DEVELOPMENT_STATUS.md` + `.agentic/bin/docs-check` green.
 
 ### P6 — Verification and ship (0.5 d)
-- [ ] `npx tsc -p web && npx tsc -p server`, `npm test`, `npm run build`,
+- [x] `npx tsc -p web && npx tsc -p server`, `npm test`, `npm run build`,
       `npm run test:e2e`, `.agentic/bin/validate`, `.agentic/bin/docs-check`.
-- [ ] Browser pass: all 13 pages + styleguide, light **and dark**, desktop
+- [x] Browser pass: all 13 pages + styleguide, light **and dark**, desktop
       1568 and phone 390 — compared against P0 baseline screenshots.
 - [ ] Commit per phase (P1+P2, P3, P4, P5), push.
 
