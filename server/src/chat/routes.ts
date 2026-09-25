@@ -185,7 +185,15 @@ export function registerChatRoutes(app: FastifyInstance, deps: ChatRouteDeps): v
   });
 
   // ── messages + completions proxy ───────────────────────────────────────
-  app.post("/api/chat/conversations/:id/messages", async (request, reply) => {
+  // Fastify's 1 MiB default body limit rejects base64-encoded 8 MiB images
+  // (~10.7 MB JSON) before the handler runs: the socket closes mid-upload,
+  // clients observe EPIPE instead of the 413, and the handler's oversized
+  // branch becomes unreachable. Room for several max-size attachments.
+  const MESSAGE_BODY_LIMIT = 48 * 1024 * 1024;
+  app.post(
+    "/api/chat/conversations/:id/messages",
+    { bodyLimit: MESSAGE_BODY_LIMIT },
+    async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = request.body as {
       content?: string;

@@ -1,10 +1,10 @@
 # Development Status — pick-up-elsewhere note
 
-_Last updated: 2026-09-24. Branch `main`. 327 tests, ~85 % lines coverage (gate 75 %), `.agentic/bin/validate` green, Playwright e2e (6 specs) green on the fake fleet._
+_Last updated: 2026-09-25. Branch `main`. 327 tests, ~85 % lines coverage (gate 75 %), `.agentic/bin/validate` green, Playwright e2e (6 specs) green on the fake fleet._
 
 ## Where we are
 
-**M0–M8 complete — every milestone gate passed on the real fleet.** 91/92 roadmap tasks done; the only remaining item is the **v1.0.0 release tag** (release config in `docs/RELEASING.md`, CHANGELOG prepared), which was deferred by owner decision until M8 landed — M8 has now landed, so the tag is next (owner confirmation required by the semver skill). Gate outcomes are recorded inline in PLAN.md under each milestone.
+**M0–M8 complete — every milestone gate passed on the real fleet, and v1.0.0 is released and tagged.** All 92 roadmap tasks are done (`PLAN.md` has no open items); tag `v1.0.0` exists (`d636a60`). The roadmap is exhausted — new work starts from user direction, not the plan. Gate outcomes are recorded inline in PLAN.md under each milestone.
 
 ### Done and verified on real hardware
 
@@ -16,10 +16,11 @@ _Last updated: 2026-09-24. Branch `main`. 327 tests, ~85 % lines coverage (gate 
 - **M6 Observability** — alert rules engine + lifecycle + delivery (WS toast, webhooks), fabric panel, benchmarks-as-jobs, Alerts/Fleet/Energy pages. Gate: pulled-agent alert fired→resolved live; kWh rollups from real watts.
 - **M7 Hardening & Release (7/8)** — config export/import + backup tooling, retention enforcement + WAL checkpointing, Settings pages (capture/retention/origins/tokens/maintenance), version-floor agent upgrade job + capability sweep, RUNBOOKS complete + generated API reference (`/api/openapi.json`), **Playwright e2e suite on the fake fleet (5 specs, `npm run test:e2e`)**, and the **M7 gate: fresh-machine install from README to first request = 9 m 0 s** (budget 30 min; evidence in PLAN.md M7).
 
-### Remaining
+### Remaining (optional, ops-only)
 
-- **Release** — v1.0.0 tag via the `semantic-versioning` skill (all six version sources, CHANGELOG section, annotated tag). Owner confirmation needed for the 1.0.0 stability declaration.
-- **Optional follow-ups** — live clock apply needs the one-time `cc-clock` sudoers install on a node (documented in RUNBOOKS), and the GLM TP=2 deployment is parked (start it from the Serve page when wanted).
+- **Live clock apply** needs the one-time `cc-clock` sudoers install on a node (manual two-line step; documented in RUNBOOKS).
+- **GLM TP=2 deployment is parked** (containers removed) — start it from the Serve page when wanted.
+- **Gateway `/v1/*` body limit**: external gateway clients sending vision payloads larger than Fastify's default 1 MiB body hit the same mid-upload EPIPE the chat route had; the chat message route now sets `bodyLimit: 48 MiB` (`server/src/chat/routes.ts`), `/v1/*` still uses the default. Raise it there when a keyed client needs large image uploads.
 
 ### M8 Chat UI (done, gate passed)
 
@@ -39,14 +40,16 @@ _Last updated: 2026-09-24. Branch `main`. 327 tests, ~85 % lines coverage (gate 
 
 ## First things to do on a new machine
 
-1. `npm install` then `npm run build` (tsc) and `npm run test:coverage` — expect **305 passing, ~84 % lines**.
+1. `npm install` then `npm run build` (tsc) and `npm test` — expect **327 passing**.
 2. `npm run test:e2e` (Playwright; boots its own fake-fleet API + Vite on scratch ports 5599/5199).
 3. `docker compose up -d --build` — restore `config/` from backup for existing state, or seed `config/nodes.json` fresh (see README quickstart; `createdAt` is required).
 4. Agents: start both per the topology above; they self-adopt server config from `welcome`/`config-update`.
 5. **Manual (one-time, needs sudo on the node)** — clock apply requires the `cc-clock` helper + sudoers entry; instructions in RUNBOOKS.md and `docs/DEVELOPMENT_STATUS.md` history.
-6. Continue with **M8 Chat UI** (next task: server chat store), then the release tag.
+6. **Roadmap complete** — nothing pending in `PLAN.md`; operations live in `RUNBOOKS.md`, architecture in `docs/ARCHITECTURE.md`.
 
 ## Ops notes learned the hard way
+
+- Rejecting a large upload before reading its body (Fastify default `bodyLimit`) closes the socket mid-write: clients get `EPIPE` instead of the status code, and the failure is platform-timing-dependent (passed on dgx-1, failed deterministically on the Mac). Keep route `bodyLimit` above your real payload ceilings and reject in the handler after the body lands.
 
 - `pkill -f <pattern>` over SSH **self-matches the remote shell** when the pattern appears in the same command line — split kill and start into separate SSH invocations, or use a regex-class trick (`cc-gate[-]home/agent`).
 - `nohup … &` over SSH keeps the session open (holds the channel); use `setsid sh -c 'exec … < /dev/null' & disown`.
