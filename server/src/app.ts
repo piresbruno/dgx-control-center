@@ -1,6 +1,8 @@
 import Fastify from "fastify";
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { Readable } from "node:stream";
+import { registerStaticUi } from "./staticUi.js";
 import type { AgentHubDeps } from "./agentHub.js";
 import { registerAgentHub } from "./agentHub.js";
 import { runInstallAgent, type BootstrapTransport } from "./bootstrap/installAgent.js";
@@ -115,6 +117,8 @@ export interface AppOptions {
   systemDb?: import("better-sqlite3").Database;
   configDir?: string;
   settingsStore?: SettingsStore;
+  /** Built UI directory (web/dist). Default: <cwd>/web/dist when it exists. */
+  webDist?: string;
 }
 
 /**
@@ -960,6 +964,11 @@ if (alertsStore && alertRulesStore) {
       });
     }
   }
+
+  // Built UI last: explicit routes above always win; the not-found handler
+  // serves web/dist and keeps API 404s JSON (ADR-0009: container serves
+  // UI + API + WS from one port).
+  registerStaticUi(app, { webDist: opts.webDist ?? join(process.cwd(), "web/dist") });
 
   return app;
 }

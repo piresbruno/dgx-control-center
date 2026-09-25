@@ -3,7 +3,7 @@ import { VERSION } from "@cc/shared";
 import { buildApp } from "./app.js";
 import { NodeDirectory } from "./nodeDirectory.js";
 import { ModelctlService } from "./modelctl/service.js";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -95,6 +95,59 @@ describe("node registry API (ADR-0009 onboarding)", () => {
     const badKind = await app.inject({ method: "POST", url: "/api/nodes", payload: { ...VALID, kind: "toaster" } });
     expect(badKind.statusCode).toBe(400);
     expect(badKind.json().error).toMatch(/kind/i);
+    await app.close();
+  });
+});
+
+describe("static UI serving (ADR-0009)", () => {
+  async function uiFixture(): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), "cc-ui-"));
+    await writeFile(join(dir, "index.html"), "<!doctype html><html><body><div id=\"root\">CC_UI_MARKER</div></body></html>");
+    await mkdir(join(dir, "assets"), { recursive: true });
+    await writeFile(join(dir, "assets", "app.js"), "console.log('cc-bundle')");
+    return dir;
+  }
+
+  it("serves index.html at / and SPA paths, assets with correct types", async () => {
+    const app = buildApp({ nodeDirectory: await testDirectory(), webDist: await uiFixture() });
+    const root = await app.inject({ method: "GET", url: "/" });
+    expect(root.statusCode).toBe(200);
+    expect(root.headers["content-type"]).toContain("text/html");
+    expect(root.body).toContain("CC_UI_MARKER");
+
+    const asset = await app.inject({ method: "GET", url: "/assets/app.js" });
+    expect(asset.statusCode).toBe(200);
+    expect(asset.headers["content-type"]).toContain("text/javascript");
+    expect(asset.body).toContain("cc-bundle");
+
+    const deep = await app.inject({ method: "GET", url: "/some/ui/link" });
+    expect(deep.statusCode).toBe(200);
+    expect(deep.body).toContain("CC_UI_MARKER");
+    await app.close();
+  });
+
+  it("keeps API 404s JSON and 404s missing assets", async () => {
+    const app = buildApp({ nodeDirectory: await testDirectory(), webDist: await uiFixture() });
+    const apiMiss = await app.inject({ method: "GET", url: "/api/definitely-not-a-route" });
+    expect(apiMiss.statusCode).toBe(404);
+    expect(apiMiss.json()).toMatchObject({ error: "Not Found", message: "Route GET:/api/definitely-not-a-route not found" });
+
+    const assetMiss = await app.inject({ method: "GET", url: "/assets/missing.js" });
+    expect(assetMiss.statusCode).toBe(404);
+    expect(assetMiss.json().message).toContain("not found");
+
+    const postMiss = await app.inject({ method: "POST", url: "/not-an-api" });
+    expect(postMiss.statusCode).toBe(404);
+    expect(postMiss.json().error).toBe("Not Found");
+    await app.close();
+  });
+
+  it("404s everything as JSON when no UI build exists", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cc-noui-"));
+    const app = buildApp({ nodeDirectory: await testDirectory(), webDist: dir });
+    const res = await app.inject({ method: "GET", url: "/" });
+    expect(res.statusCode).toBe(404);
+    expect(res.json().message).toBe("Route GET:/ not found");
     await app.close();
   });
 });

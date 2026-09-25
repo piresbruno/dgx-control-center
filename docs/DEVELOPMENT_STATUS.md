@@ -37,7 +37,7 @@ Proxy body limits: gateway `/v1/*` and the chat message route share `PROXY_BODY_
 - **dgx2** runs the agent from `~/.local/cc-agent/agent.mjs` via its bundled node (`~/.local/cc-agent/node/bin/node`), dashboardUrl `http://100.95.7.60:5566`. Deploy a rebuilt bundle: `scp agent/dist/agent.mjs dgx2:~/.local/cc-agent/` then restart. **Run exactly ONE agent per sparkId** — a duplicate connection replaces the old socket (eviction storm; ledger of past incidents in RUNBOOKS).
 - **modelctl** runs **on the nodes** (ADR-0009): the store catalog (`GET /api/models`) dispatches `modelctl list --json` to a store-capable node over the agent job channel; the dashboard container mounts only `./config` + `~/.ssh:ro` (`CC_SSH_IDENTITY=/home/piresbruno/.ssh/id_ed25519`). dgx-1 is the effective store node (store mounted + modelctl configured); register a `kind: nas` store owner to pin selection.
 - **Serving state on the fleet** (observed 2026-09-25): `glm53-exl3` TP=2 is **live** — `glm53-exl3-head` on dgx-1:8081 + `glm53-exl3-worker` on dgx2, gateway alias `glm-live`; the supervisor record for that recipe reads `desired=stopped` (containers were started outside the supervisor). qwen3-0.6b (`cc-qwen` on dgx2, alias `qwen-local`) is stopped (clean exit, memory left free for the GLM worker rank); its supervisor record still says `desired=running`.
-- Web UI in dev: `npm run dev:web` (:5173, proxies `/api` **and `/ws`**); the compose container serves the API/WS only.
+- Web UI: the compose container serves the **built UI + API + WS on the same port 5566** (`web/dist` via `server/src/staticUi.ts`; API/WS 404s stay JSON). Dev alternative: `npm run dev:web` (:5173, proxies `/api` **and `/ws`** against a locally running API).
 
 ## First things to do on a new machine
 

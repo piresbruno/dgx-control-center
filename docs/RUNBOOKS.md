@@ -80,6 +80,6 @@ The dashboard needs **no GPU, no privileged capabilities and no kernel modules**
 4. **Durable state** — keep `./config` (SQLite + `nodes.json` + JSON stores, ADR-0003) on a Proxmox bind mount or a ZFS dataset so container rebuilds and app updates preserve it.
 5. **Networking** — agents dial the dashboard, so give the LXC a stable address and set each `~/.controlcenter/agent/config.json` → `dashboardUrl` to it, then restart the agents. Tailscale inside an LXC additionally needs the TUN device:
    `lxc.cgroup2.devices.allow: c 10:200 rwm` + `lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file`.
-6. **Bring it up and verify** — `mkdir -p config && cp -r <backup>/config/* config/` (or seed `config/nodes.json`, see README), `docker compose up -d --build`, `curl localhost:5566/api/health`, then confirm the nodes show `consistent` on the Overview page.
+6. **Bring it up and verify** — `mkdir -p config && cp -r <backup>/config/* config/` (or seed `config/nodes.json`, see README), `docker compose up -d --build`, `curl localhost:5566/api/health`, then open `http://<lxc>:5566` in a browser — the container serves the built UI, API and WS on that one port — and confirm the nodes show `consistent` on the Overview page.
 
 Not part of the LXC: GPU/clock actuation (agent-side, needs the sudoers helper on the DGX), serving engines, and model downloads (nodes run those jobs). SSH from the LXC to the nodes is required for agent install/repair.
