@@ -68,6 +68,11 @@ export class JobsManager {
     };
   }
 
+  /** Whether the node's agent channel is currently connected. */
+  isConnected(nodeId: string): boolean {
+    return this.deps.isConnected(nodeId);
+  }
+
   private notifyFinished(job: JobRecord): void {
     for (const l of this.finishedListeners) l(job);
   }

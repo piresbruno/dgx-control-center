@@ -1,8 +1,4 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { z } from "zod";
-
-const execFileAsync = promisify(execFile);
 
 /** One active model in a modelctl inventory (NAS store or node-local cache). */
 export const modelRow = z.object({
@@ -21,7 +17,6 @@ export type ModelctlRunner = (args: string[]) => Promise<string>;
 export const NAS_TTL_MS = 60_000;
 export const NODE_TTL_MS = 30_000;
 export const STALE_MULTIPLIER = 5;
-export const VERSION_TTL_MS = 5 * 60_000;
 
 export interface InventorySnapshot {
   targetId: string;
@@ -44,9 +39,12 @@ export interface InventoryTarget {
 }
 
 export interface ModelctlOpts {
-  /** Default runner for targets without an explicit one. */
-  runner?: ModelctlRunner;
-  modelctlPath?: string;
+  /**
+   * Execution backend (ADR-0009): inventories always run somewhere else than
+   * the dashboard process — the store catalog dispatches to a node via the
+   * agent job channel, node-local inventories run over the node SSH seam.
+   */
+  runner: ModelctlRunner;
   now?: () => number;
 }
 
@@ -59,25 +57,11 @@ export class ModelctlService {
   private readonly cache = new Map<string, CacheEntry>();
   private readonly lastGood = new Map<string, CacheEntry>();
   private readonly inFlight = new Map<string, Promise<InventorySnapshot>>();
-  private readonly versionCache: { value: string | null; fetchedAt: number } = {
-    value: null,
-    fetchedAt: Number.NEGATIVE_INFINITY,
-  };
-  private readonly defaultRunner: ModelctlRunner;
-  private readonly modelctlPath: string;
+  private readonly runner: ModelctlRunner;
   private readonly now: () => number;
 
-  constructor(opts: ModelctlOpts = {}) {
-    this.defaultRunner =
-      opts.runner ??
-      (async (args) => {
-        const { stdout } = await execFileAsync(this.modelctlPath, args, {
-          timeout: 30_000,
-          maxBuffer: 32 * 1024 * 1024,
-        });
-        return stdout;
-      });
-    this.modelctlPath = opts.modelctlPath ?? "modelctl";
+  constructor(opts: ModelctlOpts) {
+    this.runner = opts.runner;
     this.now = opts.now ?? Date.now;
   }
 
@@ -96,7 +80,7 @@ export class ModelctlService {
   }
 
   private async fetch(target: InventoryTarget): Promise<InventorySnapshot> {
-    const runner = target.runner ?? this.defaultRunner;
+    const runner = target.runner ?? this.runner;
     try {
       const stdout = await runner(target.args);
       const parsed = listPayload.parse(JSON.parse(stdout));
@@ -114,32 +98,5 @@ export class ModelctlService {
       return { targetId: target.targetId, models: [], fetchedAt: this.now(), stale: false, error: message };
     }
   }
-
-  /** `modelctl --version`, cached VERSION_TTL_MS. Null when the binary is absent. */
-  async version(): Promise<string | null> {
-    const now = this.now();
-    if (now - this.versionCache.fetchedAt < VERSION_TTL_MS) return this.versionCache.value;
-    try {
-      const stdout = await this.defaultRunner(["--version"]);
-      this.versionCache.value = stdout.trim() || null;
-    } catch {
-      this.versionCache.value = null;
-    }
-    this.versionCache.fetchedAt = now;
-    return this.versionCache.value;
-  }
 }
 
-/** Resolve the modelctl binary: bare PATH name, else the ~/.local/bin fallback. */
-export async function resolveModelctlPath(explicit?: string): Promise<string | null> {
-  if (explicit) return explicit;
-  for (const candidate of ["modelctl", `${process.env.HOME ?? ""}/.local/bin/modelctl`]) {
-    try {
-      await execFileAsync(candidate, ["--version"], { timeout: 10_000 });
-      return candidate;
-    } catch {
-      // try next
-    }
-  }
-  return null;
-}

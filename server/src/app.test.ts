@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { VERSION } from "@cc/shared";
 import { buildApp } from "./app.js";
 import { NodeDirectory } from "./nodeDirectory.js";
@@ -19,7 +19,7 @@ async function testDirectory(): Promise<NodeDirectory> {
 }
 
 describe("model inventories (M2)", () => {
-  it("GET /api/models serves the NAS inventory via modelctl", async () => {
+  it("GET /api/models serves the store inventory via the modelctl service", async () => {
     const modelctl = new ModelctlService({ runner: async () => PAYLOAD });
     const app = buildApp({ nodeDirectory: await testDirectory(), modelctl });
     const res = await app.inject({ method: "GET", url: "/api/models" });
@@ -91,6 +91,36 @@ describe("remote jobs API (M2)", () => {
 
     const one = await app.inject({ method: "GET", url: `/api/jobs/${reqId}` });
     expect(one.json()).toMatchObject({ reqId, kind: "modelctl-list-local", state: "running" });
+    await app.close();
+  });
+
+  it("GET /api/models dispatches the store inventory to a node (ADR-0009)", async () => {
+    const { app, sent, manager } = await jobsApp();
+    const pending = app.inject({ method: "GET", url: "/api/models" });
+    await vi.waitFor(() => expect(sent.length).toBeGreaterThan(0));
+    expect(sent[0]).toMatchObject({ type: "job-run", argv: ["modelctl", "list", "--json"] });
+    const reqId = (sent[0] as { reqId: string }).reqId;
+    manager.observeMessage("dgx1", {
+      type: "job-out",
+      reqId,
+      stream: "out",
+      chunk: JSON.stringify([{ name: "GLM-5.3-Flash-EXL3", repository: "zai-org/GLM-5.3-Flash-EXL3" }]),
+    } as never);
+    manager.observeMessage("dgx1", { type: "job-exit", reqId, code: 0, signal: null } as never);
+    const res = await pending;
+    expect(res.statusCode).toBe(200);
+    expect(res.json().models).toHaveLength(1);
+    expect(res.json().models[0].name).toBe("GLM-5.3-Flash-EXL3");
+    await app.close();
+  });
+
+  it("GET /api/models surfaces an explicit error when no store-capable node is connected (ADR-0009)", async () => {
+    const { app, setConnected } = await jobsApp();
+    setConnected(false);
+    const res = await app.inject({ method: "GET", url: "/api/models" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().models).toEqual([]);
+    expect(res.json().error).toMatch(/no connected node/);
     await app.close();
   });
 

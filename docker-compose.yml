@@ -6,23 +6,16 @@ services:
     ports:
       - "5566:5566"
     environment:
-      # modelctl reads ~/.config/modelctl — the mounted home paths must match.
-      # CC_HOME is the HOST home that holds modelctl/uv/.ssh (defaults to $HOME
-      # when compose is run by the deploying user, e.g. inside an LXC).
-      HOME: /home/${CC_USER:-piresbruno}
       # ssh resolves ~ from passwd (root in-container) — pass the key explicitly.
+      # Node bootstrap/repair only (ADR-0002); runtime ops ride the agent channel.
       CC_SSH_IDENTITY: /home/${CC_USER:-piresbruno}/.ssh/id_ed25519
     volumes:
       # ADR-0003: file-backed SQLite + JSON config survive rebuilds here
       - ./config:/app/config
-      # modelctl runs on the dashboard host (uv tool with absolute shebang).
-      # Bind at the SAME host paths so the tool's interpreter resolves.
-      - ${CC_HOME:-${HOME}}/.local/share/uv/tools/modelctl:/home/${CC_USER:-piresbruno}/.local/share/uv/tools/modelctl:ro
-      - ${CC_HOME:-${HOME}}/.local/share/uv/python:/home/${CC_USER:-piresbruno}/.local/share/uv/python:ro
-      - ${CC_HOME:-${HOME}}/.local/bin/modelctl:/usr/local/bin/modelctl:ro
-      - ${CC_HOME:-${HOME}}/.config/modelctl:/home/${CC_USER:-piresbruno}/.config/modelctl:ro
+      # ADR-0009: the dashboard is filesystem-independent — no store or
+      # modelctl mounts. The NAS share is mounted on the NODES; the store
+      # catalog dispatches to a node via the agent job channel.
       - ${CC_HOME:-${HOME}}/.ssh:/home/${CC_USER:-piresbruno}/.ssh:ro
-      - /mnt/nas:/mnt/nas:ro
     restart: unless-stopped
     # Host networking is the alternative when the gateway must reach
     # loopback-bound engines on this same machine:

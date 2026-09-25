@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ModelctlService, NAS_TTL_MS, STALE_MULTIPLIER, VERSION_TTL_MS, resolveModelctlPath, type ModelctlRunner } from "./service.js";
+import { ModelctlService, NAS_TTL_MS, STALE_MULTIPLIER, type ModelctlRunner } from "./service.js";
 
 function validPayload(): string {
   return JSON.stringify([
@@ -93,31 +93,5 @@ describe("ModelctlService", () => {
     const result = await svc.inventory({ targetId: "nas", args: ["list", "--json"], ttlMs: NAS_TTL_MS });
     expect(result.models).toHaveLength(0);
     expect(result.error).not.toBeNull();
-  });
-
-  it("caches version probes for 5 minutes", async () => {
-    let clock = 1_000;
-    const runner: ModelctlRunner = vi.fn().mockResolvedValue("modelctl 0.20.1\n");
-    const svc = new ModelctlService({ runner, now: () => clock });
-    expect(await svc.version()).toBe("modelctl 0.20.1");
-    clock += VERSION_TTL_MS - 1;
-    expect(await svc.version()).toBe("modelctl 0.20.1"); // cached
-    expect(runner).toHaveBeenCalledTimes(1);
-    clock += 2_000;
-    expect(await svc.version()).toBe("modelctl 0.20.1"); // expired → re-probe
-    expect(runner).toHaveBeenCalledTimes(2);
-  });
-});
-
-describe("resolveModelctlPath", () => {
-  it("prefers an explicit path without probing", async () => {
-    expect(await resolveModelctlPath("/usr/bin/modelctl")).toBe("/usr/bin/modelctl");
-  });
-
-  it("falls back to ~/.local/bin/modelctl when PATH lookup fails", async () => {
-    // modelctl IS installed at ~/.local/bin on this host; PATH may vary in CI.
-    const resolved = await resolveModelctlPath();
-    if (resolved === null) return; // host without modelctl — nothing to assert
-    expect(resolved === "modelctl" || resolved.endsWith("/.local/bin/modelctl")).toBe(true);
   });
 });

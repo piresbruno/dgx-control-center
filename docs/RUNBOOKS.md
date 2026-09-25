@@ -10,10 +10,13 @@ Goal: healthy agent on every DGX, `Restart=always`, watchdog enabled.
 - Verify: node page shows transport `Agent vX` and state `consistent`; connectivity test passes.
 - Repair: re-run install job (idempotent, `--force` redeploys the bundle). Diagnose via `journalctl -u controlcenter-agent`.
 
-## 2. NAS / model store (M2)
+## 2. NAS / model store (M2, ADR-0009)
 
-- Register the store-owner host (LXC/VM mounting the share) as `kind: nas`; set `nasRoot` to the modelctl store root **as mounted on that node**.
-- Validate `modelctl --version` there; modelctl operations run as single-flight jobs; NAS delete stays dry-run + armed apply.
+- The dashboard never touches the store: `GET /api/models` dispatches `modelctl list --json` to a node over the agent job channel. The store share is mounted on the **nodes** (both DGXs mount `//nas.as267.com/llms` at `/mnt/nas` via fstab automount).
+- Store-node selection: a registered `kind: nas` store owner first, else connected spark/gpu-host nodes in registration order. No capable connected node ⇒ the Models page shows an explicit error snapshot.
+- The store node needs modelctl + its `~/.config/modelctl` pointed at the mounted store: `GET /api/nodes/:id/modelctl-check`, then `POST /api/nodes/:id/provision-modelctl`.
+- Register the store-owner host (LXC/VM mounting the share) as `kind: nas` to pin selection; set `nasRoot` to the modelctl store root **as mounted on that node**.
+- modelctl operations run as single-flight jobs; NAS delete stays dry-run + armed apply.
 - QNAP direct SSH is limited to read-only probes (declared `limited` node).
 
 ## 3. Cluster NCCL pins (M3)
@@ -71,15 +74,11 @@ The dashboard needs **no GPU, no privileged capabilities and no kernel modules**
 
 1. **Container** — Debian/Ubuntu template, unprivileged, with Docker nesting enabled:
    `pct set <id> --features nesting=1,keyctl=1` (rootless or privileged variants also work).
-2. **Model store (read-only)** — bind a host path or mount NFS/SMB inside the container so `/mnt/nas` exists:
-   `pct set <id> -mp0 /tank/nas,mp=/mnt/nas,ro=1`.
-3. **modelctl on the dashboard host** — the NAS catalog (`GET /api/models`) runs `modelctl list --json` locally, and the uv tool has an absolute interpreter shebang, so it must exist at the same absolute path inside the container:
-   `curl -LsSf https://astral.sh/uv/install.sh | sh && uv tool install git+https://github.com/piresbruno/modelctl`.
-   The compose file mounts `${CC_HOME:-$HOME}/...` for modelctl, uv, `.config/modelctl` and `.ssh` — set `CC_HOME` when the deploying user differs from the modelctl owner.
-4. **SSH** — `~/.ssh/id_ed25519` with access to the nodes (bootstrap/repair + node inventories); compose passes it as `CC_SSH_IDENTITY`.
-5. **Durable state** — keep `./config` (SQLite + `nodes.json` + JSON stores, ADR-0003) on a Proxmox bind mount or a ZFS dataset so container rebuilds and app updates preserve it.
-6. **Networking** — agents dial the dashboard, so give the LXC a stable address and set each `~/.controlcenter/agent/config.json` → `dashboardUrl` to it, then restart the agents. Tailscale inside an LXC additionally needs the TUN device:
+2. **Model store** — nothing to mount (ADR-0009): the store share belongs on the **nodes**, and `GET /api/models` dispatches to a store-capable node over the agent job channel. Ensure at least one connected node has the store mounted and modelctl provisioned (`GET /api/nodes/:id/modelctl-check` → `POST /api/nodes/:id/provision-modelctl`); optionally register a dedicated store owner as `kind: nas` to pin selection.
+3. **SSH** — `~/.ssh/id_ed25519` with access to the nodes (bootstrap/repair + node inventories); compose passes it as `CC_SSH_IDENTITY` and mounts `${CC_HOME:-$HOME}/.ssh` read-only — set `CC_HOME`/`CC_USER` when the deploying user differs from the key owner.
+4. **Durable state** — keep `./config` (SQLite + `nodes.json` + JSON stores, ADR-0003) on a Proxmox bind mount or a ZFS dataset so container rebuilds and app updates preserve it.
+5. **Networking** — agents dial the dashboard, so give the LXC a stable address and set each `~/.controlcenter/agent/config.json` → `dashboardUrl` to it, then restart the agents. Tailscale inside an LXC additionally needs the TUN device:
    `lxc.cgroup2.devices.allow: c 10:200 rwm` + `lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file`.
-7. **Bring it up and verify** — `mkdir -p config && cp -r <backup>/config/* config/` (or seed `config/nodes.json`, see README), `docker compose up -d --build`, `curl localhost:5566/api/health`, then confirm the nodes show `consistent` on the Overview page.
+6. **Bring it up and verify** — `mkdir -p config && cp -r <backup>/config/* config/` (or seed `config/nodes.json`, see README), `docker compose up -d --build`, `curl localhost:5566/api/health`, then confirm the nodes show `consistent` on the Overview page.
 
 Not part of the LXC: GPU/clock actuation (agent-side, needs the sudoers helper on the DGX), serving engines, and model downloads (nodes run those jobs). SSH from the LXC to the nodes is required for agent install/repair.

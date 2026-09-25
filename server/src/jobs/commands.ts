@@ -24,6 +24,7 @@ const hostname = z
 export const jobParamsSchemas = {
   "modelctl-version": z.object({}).strict().default({}),
   "modelctl-list-local": z.object({}).strict().default({}),
+  "modelctl-list-store": z.object({}).strict().default({}),
   "uv-version": z.object({}).strict().default({}),
   "modelctl-download": z.object({ source: repoId }).strict(),
   "modelctl-sync-local": z.object({ model: repoId }).strict(),
@@ -59,6 +60,9 @@ export function jobArgv(kind: string, params: unknown = {}): string[] | null {
       return ["modelctl", "--version"];
     case "modelctl-list-local":
       return ["modelctl", "list", "--local", "--json"];
+    case "modelctl-list-store":
+      // Store catalog on a node that mounts the NAS share (ADR-0009).
+      return ["modelctl", "list", "--json"];
     case "uv-version":
       return ["uv", "--version"];
     case "modelctl-download":

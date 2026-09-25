@@ -12,3 +12,4 @@ Decisions follow the [template](template.md). Status values: Proposed, Accepted,
 | [ADR-0006](0006-clock-actuators.md) — Clock actuators via spark-clock helper (-lgc + max_perf) | Accepted | sudoers-scoped, DGX-only |
 | [ADR-0007](0007-rest-and-ws.md) — REST + WS (no tRPC/gRPC) | Accepted | OpenAPI from zod, observable contracts |
 | [ADR-0008](0008-pulse-design-system.md) — Pulse DS — bespoke tokens on Tailwind v4 + Radix/shadcn | Accepted | Approved option: Slate Pro |
+| [ADR-0009](0009-store-ops-on-nodes.md) — Store operations execute on nodes; dashboard is filesystem-independent | Accepted | Catalog via job channel; compose drops /mnt/nas + modelctl mounts |

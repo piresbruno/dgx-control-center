@@ -8,6 +8,7 @@ import { runSsh } from "./transport/ssh.js";
 import { provisionModelctl, checkModelctl } from "./bootstrap/provisionModelctl.js";
 import type { NodeDirectory } from "./nodeDirectory.js";
 import { ModelctlService, NAS_TTL_MS, NODE_TTL_MS } from "./modelctl/service.js";
+import { createStoreInventoryRunner } from "./modelctl/storeInventory.js";
 import { JobsManager } from "./jobs/jobsManager.js";
 import { jobArgv } from "./jobs/commands.js";
 import { RecipeStore, buildRecipeProbeCommand, parseRecipeProbe, validRecipePath } from "./serving/recipes.js";
@@ -241,11 +242,12 @@ if (alertsStore && alertRulesStore) {
     app.decorate("nodeDirectory", nodeDirectory);
 
     app.get("/api/nodes", async () => ({ nodes: nodeDirectory.list() }));
-    const modelctl = opts.modelctl ?? new ModelctlService();
-    app.decorate("modelctl", modelctl);
-
     const jobs = opts.jobsManager ?? new JobsManager({ send: () => false, isConnected: () => false });
     app.decorate("jobsManager", jobs);
+    // Store inventories execute on nodes via the agent job channel (ADR-0009).
+    const modelctl =
+      opts.modelctl ?? new ModelctlService({ runner: createStoreInventoryRunner({ nodeDirectory, jobs, isConnected: (id) => jobs.isConnected(id) }) });
+    app.decorate("modelctl", modelctl);
 
     /** Dispatch a named job kind to a node's agent (argv resolved server-side). */
     app.post("/api/nodes/:id/jobs", async (request, reply) => {
@@ -473,9 +475,9 @@ if (alertsStore && alertRulesStore) {
       return { reqId, state: "failed", reason: "cancelled" };
     });
 
-    // NAS store inventory (modelctl configured against the mounted store).
+    // Store inventory: dispatched to a store-capable node (ADR-0009).
     app.get("/api/models", async () =>
-      modelctl.inventory({ targetId: "nas", args: ["list", "--json"], ttlMs: NAS_TTL_MS }),
+      modelctl.inventory({ targetId: "store", args: ["list", "--json"], ttlMs: NAS_TTL_MS }),
     );
 
     /** Validate modelctl on a node (doctor check, installs nothing). */

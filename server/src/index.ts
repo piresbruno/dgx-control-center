@@ -10,7 +10,6 @@ import { openDb } from "./stores/db.js";
 import { MetricsStore } from "./stores/metricsStore.js";
 import { LiveState, type LiveSnapshot } from "./liveState.js";
 import { registerBrowserHub } from "./browserHub.js";
-import { ModelctlService, resolveModelctlPath } from "./modelctl/service.js";
 import { JobsManager } from "./jobs/jobsManager.js";
 import { jobArgv } from "./jobs/commands.js";
 import { RecipeStore } from "./serving/recipes.js";
@@ -44,10 +43,6 @@ await desired.load();
 
 const db = openDb(env.CC_DB_PATH);
 const metricsStore = new MetricsStore(db);
-
-const modelctlPath = await resolveModelctlPath(env.CC_MODELCTL_PATH);
-if (!modelctlPath) console.warn("[modelctl] binary not found — model inventories will error until installed");
-const modelctl = new ModelctlService({ modelctlPath: modelctlPath ?? undefined });
 
 const liveState = new LiveState({
   describe: (id) => {
@@ -196,7 +191,6 @@ const alertDelivery = new AlertDelivery({
 const app = buildApp({
   logger: true,
   nodeDirectory: directory,
-  modelctl,
   jobsManager,
   recipeStore,
   deploymentStore,
