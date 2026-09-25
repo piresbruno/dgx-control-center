@@ -1,4 +1,5 @@
-/* Pulse DS — Slate Pro (approved): tokens + core primitives for the app. */
+/* Pulse DS — Slate Pro (approved): tokens + core primitives for the app.
+   Contract: docs/DESIGN_SYSTEM.md · live inventory: /styleguide (dev builds). */
 
 :root {
   --bg: #fbfbfc;
@@ -28,6 +29,23 @@
   --r-sm: 5px;
   --r-md: 6px;
   --r-lg: 8px;
+  /* Spacing scale (4px base) — gaps/margins use these, never magic px. */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s8: 32px;
+  /* Control heights: one field/select/button height across the app. */
+  --ctl-h: 34px;
+  --ctl-h-sm: 28px;
+  /* Terminal surfaces (dark in both themes): consoles, key reveals. */
+  --bg-2: #11151c;
+  --fg-2: #c7d0dd;
+  --focus: 0 0 0 3px var(--accent-dim);
+  --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-2: 0 12px 40px rgba(15, 23, 42, 0.25);
   --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --sidebar-w: 236px;
@@ -68,6 +86,112 @@ body {
 .tiny { font-size: 11.5px; }
 .small { font-size: 12.5px; }
 .up { color: var(--ok); }
+
+/* ── Form controls ─────────────────────────────────────────────────────
+   Global reset: every input/select/textarea is styled by default —
+   adding a class is never required. .input remains a harmless alias. */
+input, select, textarea {
+  font: 13px/1.5 var(--font-ui);
+  color: var(--text-1);
+  background: var(--surface);
+  border: 1px solid var(--hairline-2);
+  border-radius: var(--r-sm);
+  min-height: var(--ctl-h);
+  padding: 6px var(--s2);
+  min-width: 0;
+}
+input::placeholder, textarea::placeholder { color: var(--text-3); }
+input:hover:not(:disabled), select:hover:not(:disabled), textarea:hover:not(:disabled) { border-color: var(--text-3); }
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: none; border-color: var(--accent); box-shadow: var(--focus);
+}
+input:disabled, select:disabled, textarea:disabled {
+  color: var(--text-3); background: var(--raised); cursor: not-allowed;
+}
+textarea { resize: vertical; }
+input[type="checkbox"], input[type="radio"] {
+  min-height: 0; padding: 0; width: 15px; height: 15px; accent-color: var(--accent); flex: none;
+}
+input[type="number"] { font-family: var(--font-mono); }
+select {
+  -webkit-appearance: none; appearance: none;
+  padding-right: 28px; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='7' viewBox='0 0 11 7'%3E%3Cpath d='M1 1l4.5 4.5L10 1' fill='none' stroke='%2378849a' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center;
+}
+.ctl-sm { min-height: var(--ctl-h-sm); font-size: 12.5px; padding-top: 3px; padding-bottom: 3px; }
+
+/* Width helpers for dense form rows (thresholds, ids, …). */
+.w-xs { width: 76px; flex: none; }
+.w-sm { width: 110px; flex: none; }
+.w-md { width: 170px; flex: none; }
+.w-lg { width: 250px; max-width: 100%; flex: none; }
+.grow { flex: 1 1 auto; min-width: 0; }
+.spacer { flex: 1; }
+
+/* ── Layout utilities — compose these, do not inline flex/margin CSS ── */
+.row { display: flex; align-items: center; gap: var(--s2); }
+.row.top { align-items: flex-start; }
+.row.between { justify-content: space-between; }
+.wrap { flex-wrap: wrap; }
+.stack { display: flex; flex-direction: column; gap: var(--s3); }
+.stack.tight { gap: var(--s2); }
+.stack.loose { gap: var(--s4); }
+.mt { margin-top: var(--s5); }
+.mb { margin-bottom: var(--s5); }
+.col-span-all { grid-column: 1 / -1; }
+.hidden { display: none; }
+
+/* Action bar inside a panel head or above a table. */
+.toolbar { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+
+/* Segmented toggle (filters, buckets, views) — replaces button triplets. */
+.segmented {
+  display: inline-flex; border: 1px solid var(--hairline-2);
+  border-radius: var(--r-md); overflow: hidden; background: var(--surface);
+}
+.segmented button {
+  font: 600 12.5px/1 var(--font-ui); padding: 0 var(--s3); min-height: var(--ctl-h-sm);
+  background: transparent; border: 0; border-left: 1px solid var(--hairline);
+  color: var(--text-2); cursor: pointer;
+}
+.segmented button:first-child { border-left: 0; }
+.segmented button:hover { background: var(--raised); color: var(--text-1); }
+.segmented button.active { background: #101828; color: #fff; }
+[data-theme="dark"] .segmented button.active { background: #e7ebf2; color: #10151d; }
+
+/* Message banners: info success / ok / warn / crit. Never raw colored divs. */
+.callout {
+  display: flex; gap: var(--s2); align-items: flex-start;
+  padding: 9px var(--s3); border-radius: var(--r-md);
+  font-size: 13px; background: var(--raised); color: var(--text-2);
+}
+.callout.info { color: var(--info); background: var(--info-dim); }
+.callout.ok { color: var(--ok); background: var(--ok-dim); }
+.callout.warn { color: var(--warn); background: var(--warn-dim); }
+.callout.crit { color: var(--crit); background: var(--crit-dim); }
+
+/* Terminal surfaces: consoles, one-time secrets, curl blocks. */
+.code-block {
+  background: var(--bg-2); color: var(--fg-2);
+  padding: 10px 12px; border-radius: var(--r-md);
+  font: 12px/1.5 var(--font-mono); overflow: auto; margin: 0;
+}
+.code-block--console { max-height: 220px; white-space: pre-wrap; }
+.code-block--job { max-height: 180px; white-space: pre-wrap; }
+.doctor-row { display: flex; gap: var(--s2); flex-wrap: wrap; margin: var(--s3) 0 var(--s4); }
+/* Definition rows (label left, value right) — node detail, model info. */
+.detail-list { display: grid; gap: 6px; font-size: 12.5px; }
+.detail-list > div { display: flex; justify-content: space-between; gap: var(--s3); }
+.detail-list dt { color: var(--text-2); }
+.detail-list dd { margin: 0; font-family: var(--font-mono); text-align: right; }
+.key-reveal {
+  display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap;
+  background: var(--bg-2); color: var(--fg-2);
+  padding: 10px 12px; border-radius: var(--r-md);
+  font: 12px/1.5 var(--font-mono);
+}
+.key-reveal > .key-reveal-value { flex: 1 1 100%; word-break: break-all; }
 
 .app { display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 100vh; }
 .main { min-width: 0; display: flex; flex-direction: column; }
@@ -150,22 +274,39 @@ body {
 }
 
 .btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  font: 600 12.5px/1 var(--font-ui); padding: 8px 12px; border-radius: var(--r-sm);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font: 600 12.5px/1 var(--font-ui); min-height: var(--ctl-h); padding: 0 var(--s3);
+  border-radius: var(--r-sm);
   border: 1px solid var(--hairline-2); background: var(--surface); color: var(--text-1); cursor: pointer;
 }
 .btn:hover { background: var(--raised); }
+.btn:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn.primary { background: #101828; border-color: transparent; color: #fff; }
 .btn.primary:hover { background: #1d2939; }
 [data-theme="dark"] .btn.primary { background: #e7ebf2; color: #10151d; }
 .btn.danger { color: var(--crit); border-color: var(--crit); background: var(--surface); }
-.btn.sm { padding: 5px 9px; font-size: 11.5px; }
+.btn.danger:hover { background: var(--crit-dim); }
+.btn.warn { color: var(--warn); border-color: var(--warn); background: var(--surface); }
+.btn.warn:hover { background: var(--warn-dim); }
+.btn.sm { min-height: var(--ctl-h-sm); padding: 0 9px; font-size: 11.5px; }
 .btn.ghost { border-color: transparent; background: transparent; }
 .btn.ghost:hover { background: var(--raised); }
+a.btn { text-decoration: none; }
 
-/* Label + control rows that align across a panel (Settings, forms). */
-.field { display: flex; align-items: center; gap: 12px; }
+/* ── Forms ──────────────────────────────────────────────────────────────
+   .form-grid: one label column, every control shares height + x-start.
+   .field = a row of it (label + control). .field-inline keeps the old
+   horizontal label+control pair for single rows. */
+.form-grid { display: grid; gap: var(--s3); }
+.field { display: flex; align-items: center; gap: var(--s3); }
+.field.top { align-items: flex-start; }
 .field > label, .field > .field-label { flex: 0 0 230px; color: var(--text-2); font-size: 13px; }
+.field-label .req { color: var(--crit); }
+/* Stacked label over control (dense toolbars, narrow panels). */
+.field-v { display: flex; flex-direction: column; gap: var(--s1); font-size: 12px; color: var(--text-2); }
+/* Free-flowing control rows where widths vary (rule builder, filters). */
+.form-row { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
 
 table.dt, table.table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .dt th, .table th {
@@ -178,9 +319,22 @@ table.dt, table.table { width: 100%; border-collapse: collapse; font-size: 13px;
 .dt tbody tr:hover td, .table tbody tr:hover td { background: var(--raised); }
 .dt td.num, .dt th.num, .table td.num, .table th.num { text-align: right; font-family: var(--font-mono); font-size: 12px; }
 .dt .strong, .table .strong { font-weight: 600; }
+/* Chart column in sparse header rows (hourly sparkline slot). */
+.th-spark { width: 40%; }
+/* Right-aligned action column: buttons sit in one clean edge column. */
+.dt th.col-act, .table th.col-act { text-align: right; }
+.dt td.col-act, .table td.col-act { text-align: right; white-space: nowrap; }
+.dt td.col-act .btn + .btn, .table td.col-act .btn + .btn { margin-left: 6px; }
+/* Secondary line under a table cell's primary label. */
+.cell-sub { color: var(--text-3); font-size: 11.5px; margin-top: 2px; }
+/* Rows the user can click into. */
+.table tbody tr.clickable { cursor: pointer; }
+.table tbody tr.selected td { background: var(--accent-dim); }
+/* Any clickable row/card, not just table rows. */
+.clickable { cursor: pointer; }
 
 .meter { height: 6px; border-radius: 3px; background: var(--overlay); overflow: hidden; }
-.meter i { display: block; height: 100%; border-radius: 3px; }
+.meter i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
 .gauge-row { display: grid; grid-template-columns: 46px 1fr 100px; gap: 10px; align-items: center; font-size: 12px; color: var(--text-2); }
 .gauge-row .v { text-align: right; font-family: var(--font-mono); font-size: 11.5px; }
 .node-card { padding: 16px 18px; display: flex; flex-direction: column; gap: 11px; }
@@ -189,16 +343,31 @@ table.dt, table.table { width: 100%; border-collapse: collapse; font-size: 13px;
 .node-card .meta { font-size: 11px; color: var(--text-3); }
 .node-icon { width: 30px; height: 30px; border-radius: 7px; display: grid; place-items: center; background: var(--overlay); flex: none; }
 .node-icon svg { width: 15px; height: 15px; color: var(--text-2); }
+/* Footer strip inside node cards. */
+.card-foot { border-top: 1px solid var(--hairline); padding-top: 10px; }
+/* Label/value row (node detail gauges). */
+.detail-row {
+  display: flex; justify-content: space-between; gap: var(--s3);
+  padding: 6px 0; border-bottom: 1px solid var(--hairline);
+}
 
 .spark { width: 100%; }
 .spark svg { display: block; width: 100%; height: 100%; }
 .note { color: var(--text-3); font-size: 11.5px; margin-top: 28px; }
 .empty { text-align: center; color: var(--text-3); padding: 36px 10px; font-size: 13px; }
+.empty .empty-action { margin-top: var(--s3); display: flex; justify-content: center; gap: var(--s2); }
+
+/* Alert toasts (top-right stack). */
+.toast-stack { position: fixed; top: 12px; right: 12px; display: grid; gap: var(--s2); z-index: 100; width: min(360px, calc(100vw - 24px)); }
+.toast { display: flex; gap: var(--s2); align-items: flex-start; border-left-width: 3px; border-left-style: solid; box-shadow: var(--shadow-1); }
+.toast.crit { border-left-color: var(--crit); }
+.toast.warn { border-left-color: var(--warn); }
+.toast.info { border-left-color: var(--info); }
 
 @media (max-width: 960px) {
   .app { grid-template-columns: 1fr; }
   .sidebar { position: fixed; z-index: 80; left: 0; top: 0; bottom: 0; width: 260px; transform: translateX(-102%); transition: transform 180ms ease-out; }
-  .sidebar.open { transform: none; box-shadow: 0 12px 40px rgba(15, 23, 42, 0.25); }
+  .sidebar.open { transform: none; box-shadow: var(--shadow-2); }
   .menu-btn { display: inline-flex; }
   .page { padding: 18px 14px 40px; }
   .page-head { flex-direction: column; align-items: stretch; }
@@ -209,6 +378,10 @@ table.dt, table.table { width: 100%; border-collapse: collapse; font-size: 13px;
   .dt, .table { min-width: 620px; }
   .dt th, .dt td, .table th, .table td { white-space: nowrap; }
   .topbar { padding: 0 14px; }
+  /* Forms stack: label above control, controls full width. */
+  .field { flex-direction: column; align-items: stretch; gap: var(--s1); }
+  .field > label, .field > .field-label { flex: none; }
+  .w-xs, .w-sm, .w-md, .w-lg { width: 100%; }
 }
 @media (max-width: 560px) {
   .cols-3, .cols-4 { grid-template-columns: 1fr; }
@@ -217,11 +390,9 @@ table.dt, table.table { width: 100%; border-collapse: collapse; font-size: 13px;
 #navScrim { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 70; display: none; }
 #navScrim.show { display: block; }
 
-/* ── Chat (M8) ─────────────────────────────────────────────────────────── */
-.input {
-  font: 13px/1.5 var(--font-ui); color: var(--text-1); background: var(--surface);
-  border: 1px solid var(--hairline-2); border-radius: var(--r-sm); padding: 7px 9px;
-}
+/* ── Chat (M8) + misc ────────────────────────────────────────────────── */
+/* Note: form controls are styled globally (see Form controls above);
+   className="input" is a legacy alias and is no longer needed. */
 .hint { color: var(--text-3); font-size: 11.5px; }
 .chat-msg {
   border: 1px solid var(--hairline); border-radius: var(--r-lg);
@@ -243,4 +414,38 @@ table.dt, table.table { width: 100%; border-collapse: collapse; font-size: 13px;
   font-family: var(--font-mono); font-size: 12px;
 }
 .md-body .md-code code { background: transparent; padding: 0; }
+
+/* Chat page layout (composed by ChatPage — no inline layout CSS). */
+.chat-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: var(--s3); align-items: start; }
+.chat-pane { display: flex; flex-direction: column; max-height: calc(100vh - 150px); }
+.chat-pane-scroll { overflow-y: auto; }
+.chat-pane-grow { overflow-y: auto; flex: 1; }
+.chat-pane-head { justify-content: space-between; }
+.chat-title { flex: 1 1 auto; min-width: 120px; }
+.chat-context-banner { padding: 0 14px; }
+.chat-composer {
+  border-top: 1px solid var(--hairline); padding: 10px;
+  display: flex; flex-direction: column; gap: var(--s2);
+}
+.chat-attachments { display: flex; gap: 6px; flex-wrap: wrap; }
+.chat-attach-thumb { height: 72px; border-radius: var(--r-sm); border: 1px solid var(--hairline); }
+.chat-actions { display: flex; gap: 6px; }
+.chat-stack { display: flex; flex-direction: column; gap: 6px; }
+.chat-folder { margin-bottom: var(--s2); }
+.chat-folder-list { margin-left: var(--s2); }
+.chat-conv-row { display: flex; align-items: center; gap: var(--s1); }
+
+/* Spacing utilities (kept small; prefer .mt/.mb/stack gaps). */
+.mt-xs { margin-top: var(--s1); }
+.mt-sm { margin-top: var(--s2); }
+.mb-sm { margin-bottom: var(--s2); }
+.my-sm { margin: var(--s1) 0; }
+.pt-0 { padding-top: 0; }
+.pre-wrap { white-space: pre-wrap; }
+.row.end { align-items: flex-end; }
+
+/* Token swatch chip (styleguide). */
+.swatch { width: 10px; height: 10px; border-radius: 3px; border: 1px solid var(--hairline); flex: none; }
+.mt-md { margin-top: var(--s3); }
+.panel-head.wrap { flex-wrap: wrap; }
 .md-body a { color: var(--accent); }

@@ -1,5 +1,6 @@
-import { useState, type ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { useLiveSnapshot, type LiveNode } from "./api/ws.js";
+import { apiGet } from "./api/client.js";
 import { OverviewPage } from "./pages/OverviewPage.js";
 import { NodePage } from "./pages/NodePage.js";
 import { ModelsPage } from "./pages/ModelsPage.js";
@@ -13,8 +14,9 @@ import { AlertsPage } from "./pages/AlertsPage.js";
 import { FleetExplorerPage } from "./pages/FleetExplorerPage.js";
 import { SettingsPage } from "./pages/SettingsPage.js";
 import { ChatPage } from "./pages/ChatPage.js";
+import { StyleguidePage } from "./ui/StyleguidePage.js";
 
-type PageId = "overview" | "chat" | "node" | "models" | "serve" | "recipes" | "analysis" | "clients" | "router" | "energy" | "alerts" | "fleet" | "settings";
+type PageId = "overview" | "chat" | "node" | "models" | "serve" | "recipes" | "analysis" | "clients" | "router" | "energy" | "alerts" | "fleet" | "settings" | "styleguide";
 
 const NAV: Array<{ sec?: string; id?: PageId; label?: string }> = [
   { sec: "Fleet" },
@@ -35,7 +37,16 @@ const NAV: Array<{ sec?: string; id?: PageId; label?: string }> = [
   { id: "fleet", label: "Fleet explorer" },
   { sec: "System" },
   { id: "settings", label: "Settings" },
+  ...(import.meta.env.DEV ? [{ id: "styleguide" as const, label: "Styleguide" }] : []),
 ];
+
+/** Topbar breadcrumb labels — page id alone reads poorly ("FleetExplorer"). */
+const LABELS: Record<PageId, string> = {
+  overview: "Overview", chat: "Chat", node: "Nodes", models: "Models", serve: "Serve",
+  recipes: "Recipes", analysis: "Analysis", clients: "Clients", router: "Router",
+  energy: "Energy", alerts: "Alerts", fleet: "Fleet explorer", settings: "Settings",
+  styleguide: "Styleguide",
+};
 
 export function App() {
   const { nodes, history, connected, alerts, dismissAlert } = useLiveSnapshot();
@@ -45,6 +56,35 @@ export function App() {
   const [theme, setTheme] = useState<"" | "dark">(
     globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "",
   );
+  const [envLabel, setEnvLabel] = useState("");
+
+  // Sidebar env line: registered-node count from the directory, never hardcoded.
+  useEffect(() => {
+    let alive = true;
+    apiGet<{ nodes: unknown[] }>("/api/nodes")
+      .then((d) => {
+        if (!alive) return;
+        const count = d.nodes?.length ?? 0;
+        setEnvLabel(`${count} node${count === 1 ? "" : "s"} · ${window.location.host}`);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Theme: dark tokens existed in pulse.css but were unreachable — apply to
+  // <html data-theme> and persist the choice.
+  useEffect(() => {
+    if (localStorage.getItem("cc-theme") === "dark") setTheme("dark");
+  }, []);
+  useEffect(() => {
+    if (theme === "dark") document.documentElement.setAttribute("data-theme", "dark");
+    else document.documentElement.removeAttribute("data-theme");
+    localStorage.setItem("cc-theme", theme === "dark" ? "dark" : "light");
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((t) => (t === "dark" ? "" : "dark"));
 
   const selectNode = (id: string) => {
     setSelectedNode(id);
@@ -62,16 +102,19 @@ export function App() {
   return (
     <div className="app">
       {alerts.length > 0 && (
-        <div style={{ position: "fixed", top: 12, right: 12, display: "grid", gap: 8, zIndex: 100 }} data-testid="alert-toasts">
+        <div className="toast-stack" data-testid="alert-toasts">
           {alerts.map((a) => (
-            <div key={a.id} className="panel" style={{ minWidth: 280, borderLeft: `3px solid var(--${a.severity === "critical" ? "crit" : a.severity === "warning" ? "warn" : "info"})` }}>
-              <div className="panel-body" style={{ display: "flex", gap: 8, alignItems: "start" }}>
+            <div
+              key={a.id}
+              className={`panel toast ${a.severity === "critical" ? "crit" : a.severity === "warning" ? "warn" : "info"}`}
+            >
+              <div className="panel-body row top">
                 <span className={`pill ${a.severity === "critical" ? "crit" : a.severity === "warning" ? "warn" : "info"}`}>
                   <span className="dot" />{a.severity}
                 </span>
-                <div style={{ flex: 1 }}>
+                <div className="grow">
                   <strong>{a.ruleName}</strong>
-                  <div className="hint" style={{ fontSize: 11 }}>{a.entity} — {a.detail}</div>
+                  <div className="cell-sub">{a.entity} — {a.detail}</div>
                 </div>
                 <button className="btn sm ghost" aria-label="Dismiss" onClick={() => dismissAlert(a.id)}>✕</button>
               </div>
@@ -86,7 +129,7 @@ export function App() {
           </div>
           <div>
             <b>ControlCenter</b>
-            <span className="env">home.local</span>
+            <span className="env">{envLabel || "connecting…"}</span>
           </div>
         </div>
         {NAV.map((item) =>
@@ -110,10 +153,13 @@ export function App() {
         <div className="topbar">
           <button className="btn ghost sm menu-btn" aria-label="Menu" onClick={() => setNavOpen(!navOpen)}>☰</button>
           <div className="crumb">
-            {page === "node" && node ? <>Nodes <span>·</span> <b>{node.name}</b></> : <b>{page.charAt(0).toUpperCase() + page.slice(1)}</b>}
+            {page === "node" && node ? <>Nodes <span>·</span> <b>{node.name}</b></> : <b>{LABELS[page]}</b>}
           </div>
           <div className="spacer" />
           <span className={connected ? "live-dot" : "live-dot off"} title={connected ? "live" : "disconnected"} />
+          <button className="btn ghost sm" onClick={toggleTheme} aria-label="Toggle theme" data-testid="theme-toggle">
+            {theme === "dark" ? "☀" : "☾"}
+          </button>
         </div>
 
         <div className="page">
@@ -134,6 +180,7 @@ export function App() {
           {page === "alerts" && <AlertsPage />}
           {page === "fleet" && <FleetExplorerPage />}
           {page === "settings" && <SettingsPage />}
+          {page === "styleguide" && <StyleguidePage />}
         </div>
       </div>
     </div>
