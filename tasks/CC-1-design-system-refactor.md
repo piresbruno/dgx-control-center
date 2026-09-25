@@ -147,23 +147,23 @@ for; documented in the design-system doc.
       `npm run test:e2e`, `.agentic/bin/validate`, `.agentic/bin/docs-check`.
 - [x] Browser pass: all 13 pages + styleguide, light **and dark**, desktop
       1568 and phone 390 — compared against P0 baseline screenshots.
-- [ ] Commit per phase (P1+P2, P3, P4, P5), push.
+- [x] Commit per phase (P1+P2, P3, P4, P5), push.
 
 ## Acceptance criteria
 
-- [ ] No unstyled form control remains (zero bare `input`/`select`/`textarea`).
-- [ ] Settings, Alerts, Fleet explorer, Clients pass an alignment review:
+- [x] No unstyled form control remains (zero bare `input`/`select`/`textarea`).
+- [x] Settings, Alerts, Fleet explorer, Clients pass an alignment review:
       every control in a form shares height + baseline; every table uses the
       DS table.
-- [ ] No page references undefined classes or undefined CSS custom properties.
-- [ ] Fleet-specific strings (dgx1:8081, cc.home.local, 2× DGX) are gone from
+- [x] No page references undefined classes or undefined CSS custom properties.
+- [x] Fleet-specific strings (dgx1:8081, cc.home.local, 2× DGX) are gone from
       product paths.
-- [ ] `--fake-fleet` exercises every page with data; removing the flag is the
+- [x] `--fake-fleet` exercises every page with data; removing the flag is the
       only step to switch to real data (no web-side mock code exists).
-- [ ] /styleguide renders every primitive in both themes.
-- [ ] docs/DESIGN_SYSTEM.md exists, indexed per progressive-disclosure tiers;
+- [x] /styleguide renders every primitive in both themes.
+- [x] docs/DESIGN_SYSTEM.md exists, indexed per progressive-disclosure tiers;
       AGENTS.md routes a `web/`-touching task into it.
-- [ ] All gates green; e2e includes the mock-seam test.
+- [x] All gates green; e2e includes the mock-seam test.
 
 ## Scope
 
@@ -185,14 +185,17 @@ for; documented in the design-system doc.
 
 ## Validation evidence
 
-- Configuration validation: pending
-- Tests: pending
-- Build: pending
-- Documentation check: pending
+- Configuration validation: `.agentic/bin/validate` — passed.
+- Tests: `npx vitest run` — 348/348 (44 files); `npm run test:e2e` — 9/9 incl. `mock-seam.spec.ts` (fake-fleet seeded vs honestly-empty real mode).
+- Build: `npm run build` — rc 0 (shared+server+web).
+- Documentation check: `.agentic/bin/docs-check` — passed (heuristic API/config advisories only; no server API or config contract changed).
+- Token audit: every `var(--*)` used in `web/src` is defined in `pulse.css`; `.row.between`/`.doctor-row`/`.btn.ghost` now have real definitions.
 
 ## Review
 
-- Correctness: pending
+- Correctness: verified — full visual pass on the seeded fake fleet (13 pages,
+  light+dark, 1568+390) and mock-seam e2e both halves.
 - Security: mock data contains no secrets; key reveal UI shows only synthetic.
-- Compatibility: existing testids preserved; e2e suite must stay green.
-- Residual risks: P3 touches all pages — screenshot baseline guards regressions.
+- Compatibility: existing testids preserved; e2e suite green (9/9).
+- Residual risks: P3 touched all pages — screenshot baseline comparison found
+  no regressions.
