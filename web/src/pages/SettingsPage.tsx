@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 
+interface NodeRecord {
+  id: string;
+  name: string;
+  kind: string;
+  role: string;
+  lanIp?: string;
+  sshUser?: string;
+  createdAt: number;
+}
+
 interface SystemSettings {
   retention: { tracesDays: number; alertEventsMax: number; backupsKeep: number };
   capture: { payloads: boolean };
@@ -29,6 +39,11 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [backups, setBackups] = useState<Array<{ id: string; files: string[]; dbBytes: number }>>([]);
   const [maintenance, setMaintenance] = useState<string | null>(null);
+  const [nodes, setNodes] = useState<NodeRecord[] | null>(null);
+  const [draft, setDraft] = useState({ id: "", name: "", kind: "spark", role: "worker", lanIp: "", sshUser: "" });
+  const [nodeMessage, setNodeMessage] = useState<string | null>(null);
+  const [nodeError, setNodeError] = useState<string | null>(null);
+  const [installing, setInstalling] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -42,6 +57,65 @@ export function SettingsPage() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const refreshNodes = useCallback(async () => {
+    try {
+      setNodes(await json<{ nodes: NodeRecord[] }>("/api/nodes").then((d) => d.nodes));
+    } catch (e) {
+      setNodeError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshNodes();
+  }, [refreshNodes]);
+
+  const addNode = async () => {
+    setNodeError(null);
+    setNodeMessage(null);
+    const id = draft.id.trim();
+    if (!id) {
+      setNodeError("Node id is required.");
+      return;
+    }
+    try {
+      const payload: Record<string, unknown> = {
+        id,
+        name: draft.name.trim() || id,
+        kind: draft.kind,
+        role: draft.role,
+      };
+      if (draft.lanIp.trim()) payload.lanIp = draft.lanIp.trim();
+      if (draft.sshUser.trim()) payload.sshUser = draft.sshUser.trim();
+      await json("/api/nodes", { method: "POST", body: JSON.stringify(payload) });
+      setNodeMessage(`Node '${id}' registered — agents may now connect with this sparkId.`);
+      setDraft((d) => ({ ...d, id: "", name: "" }));
+      await refreshNodes();
+    } catch (e) {
+      setNodeError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const installAgent = async (id: string) => {
+    setNodeError(null);
+    setNodeMessage(null);
+    setInstalling(id);
+    try {
+      const outcome = await json<{ ok: boolean; mode: string; reason: string | null; helloSeen: boolean }>(
+        `/api/nodes/${id}/install-agent`,
+        { method: "POST" },
+      );
+      setNodeMessage(
+        outcome.ok && outcome.helloSeen
+          ? `Agent installed on ${id} (${outcome.mode}) — hello seen.`
+          : `Install on ${id}: ok=${outcome.ok}, mode=${outcome.mode}${outcome.reason ? ` — ${outcome.reason}` : ""}`,
+      );
+    } catch (e) {
+      setNodeError(`Install on ${id} failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setInstalling(null);
+    }
+  };
 
   /** PATCH accepts deep-partial settings (e.g. a single retention field). */
   const patch = async (
@@ -165,6 +239,55 @@ export function SettingsPage() {
             (<code>CC_AGENT_TOKEN</code>, <code>CC_UPSTREAM_AUTH</code>) — never in config files or exports. Rotating the
             agent token requires updating each agent's config and the dashboard env together.
           </div>
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-head"><h2>Nodes</h2></div>
+        <div className="panel-body" style={{ display: "grid", gap: 10 }}>
+          <div className="hint">
+            Registered nodes (<code>nodes.json</code>). Agents may only connect with a registered sparkId — add them
+            here instead of hand-editing the file. Install uses SSH, so lanIp + sshUser are required for it.
+          </div>
+          {(nodes ?? []).map((n) => (
+            <div
+              key={n.id}
+              data-testid={`registry-row-${n.id}`}
+              style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", borderTop: "1px solid var(--hairline)", paddingTop: 8 }}
+            >
+              <strong className="mono">{n.id}</strong>
+              <span className="hint">
+                {n.name} · {n.kind} · {n.role}
+                {n.lanIp ? ` · ${n.lanIp}` : ""}
+              </span>
+              <span style={{ flex: 1 }} />
+              {n.kind !== "nas" && n.lanIp && n.sshUser && (
+                <button className="btn sm" disabled={installing === n.id} onClick={() => void installAgent(n.id)}>
+                  {installing === n.id ? "Installing…" : "Install agent"}
+                </button>
+              )}
+            </div>
+          ))}
+          {nodes !== null && nodes.length === 0 && <div className="empty">No nodes registered yet.</div>}
+          <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", borderTop: "1px solid var(--hairline)", paddingTop: 10 }}>
+            <input data-testid="node-id" placeholder="id (dgx3)" value={draft.id} onChange={(e) => setDraft((d) => ({ ...d, id: e.target.value }))} />
+            <input data-testid="node-name" placeholder="name (dgx-3)" value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} />
+            <select data-testid="node-kind" value={draft.kind} onChange={(e) => setDraft((d) => ({ ...d, kind: e.target.value }))} aria-label="Kind">
+              <option value="spark">spark</option>
+              <option value="gpu-host">gpu-host</option>
+              <option value="nas">nas</option>
+            </select>
+            <select data-testid="node-role" value={draft.role} onChange={(e) => setDraft((d) => ({ ...d, role: e.target.value }))} aria-label="Role">
+              <option value="head">head</option>
+              <option value="worker">worker</option>
+              <option value="standalone">standalone</option>
+            </select>
+            <input data-testid="node-lanip" placeholder="lanIp" value={draft.lanIp} onChange={(e) => setDraft((d) => ({ ...d, lanIp: e.target.value }))} />
+            <input data-testid="node-sshuser" placeholder="sshUser" value={draft.sshUser} onChange={(e) => setDraft((d) => ({ ...d, sshUser: e.target.value }))} />
+            <button className="btn sm primary" data-testid="node-add" onClick={() => void addNode()}>Add node</button>
+          </div>
+          {nodeMessage && <div className="hint" data-testid="nodes-message">{nodeMessage}</div>}
+          {nodeError && <div style={{ color: "var(--crit)" }} data-testid="nodes-error">{nodeError}</div>}
         </div>
       </section>
 

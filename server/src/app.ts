@@ -242,6 +242,21 @@ if (alertsStore && alertRulesStore) {
     app.decorate("nodeDirectory", nodeDirectory);
 
     app.get("/api/nodes", async () => ({ nodes: nodeDirectory.list() }));
+
+    /** Register or replace a node (replaces hand-editing nodes.json; zod-validated). */
+    app.post("/api/nodes", async (request, reply) => {
+      const body = request.body as Record<string, unknown> | null;
+      if (!body || typeof body.id !== "string" || body.id.length === 0) {
+        return reply.code(400).send({ error: "node id is required" });
+      }
+      const created = !nodeDirectory.isKnown(body.id);
+      try {
+        const node = await nodeDirectory.upsert(body);
+        return reply.code(created ? 201 : 200).send(node);
+      } catch (err) {
+        return reply.code(400).send({ error: err instanceof Error ? err.message : "invalid node record" });
+      }
+    });
     const jobs = opts.jobsManager ?? new JobsManager({ send: () => false, isConnected: () => false });
     app.decorate("jobsManager", jobs);
     // Store inventories execute on nodes via the agent job channel (ADR-0009).

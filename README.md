@@ -45,7 +45,7 @@ mkdir -p config                                      # ADR-0003: bind-mounted st
 cat > config/nodes.json <<'JSON'                     # seed at least one node (id = agent sparkId; createdAt required)
 [{ "id": "dgx2", "name": "dgx2", "kind": "spark", "role": "worker",
    "lanIp": "100.122.3.115", "sshUser": "piresbruno", "llmPorts": [], "createdAt": 1790000000000 }]
-JSON
+JSON                                                 # (or add nodes later from the UI: Settings → Nodes)
 docker compose up -d --build                         # dashboard on http://<host>:5566
 curl -s localhost:5566/api/health                    # {"ok":true,...}
 ```

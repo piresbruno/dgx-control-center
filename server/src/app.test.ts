@@ -61,6 +61,44 @@ describe("model inventories (M2)", () => {
   });
 });
 
+describe("node registry API (ADR-0009 onboarding)", () => {
+  const VALID = { id: "dgx3", name: "dgx-3", kind: "spark", role: "worker", lanIp: "10.0.0.13", sshUser: "piresbruno" };
+
+  it("creates a node and returns 201 with server-defaulted createdAt", async () => {
+    const dir = await testDirectory();
+    const app = buildApp({ nodeDirectory: dir });
+    const res = await app.inject({ method: "POST", url: "/api/nodes", payload: VALID });
+    expect(res.statusCode).toBe(201);
+    const node = res.json();
+    expect(node).toMatchObject({ id: "dgx3", kind: "spark", llmPorts: [] });
+    expect(node.createdAt).toBeGreaterThan(0);
+    expect(dir.get("dgx3")).toMatchObject({ name: "dgx-3" });
+    await app.close();
+  });
+
+  it("replaces an existing node with 200 and preserves its createdAt", async () => {
+    const dir = await testDirectory();
+    const app = buildApp({ nodeDirectory: dir });
+    const first = await app.inject({ method: "POST", url: "/api/nodes", payload: VALID });
+    const created = first.json();
+    const res = await app.inject({ method: "POST", url: "/api/nodes", payload: { ...VALID, name: "renamed" } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ name: "renamed", createdAt: created.createdAt });
+    await app.close();
+  });
+
+  it("rejects a missing id and invalid kinds with 400", async () => {
+    const app = buildApp({ nodeDirectory: await testDirectory() });
+    const noId = await app.inject({ method: "POST", url: "/api/nodes", payload: { kind: "spark" } });
+    expect(noId.statusCode).toBe(400);
+    expect(noId.json().error).toMatch(/id is required/);
+    const badKind = await app.inject({ method: "POST", url: "/api/nodes", payload: { ...VALID, kind: "toaster" } });
+    expect(badKind.statusCode).toBe(400);
+    expect(badKind.json().error).toMatch(/kind/i);
+    await app.close();
+  });
+});
+
 describe("remote jobs API (M2)", () => {
   async function jobsApp() {
     const dir = await testDirectory();

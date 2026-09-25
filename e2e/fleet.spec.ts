@@ -36,3 +36,25 @@ test("Settings page exposes retention and backups", async ({ page }) => {
   await expect(page.getByTestId("backups-table")).toBeVisible();
   await expect(page.getByText("Trace retention")).toBeVisible();
 });
+
+test("Settings page registers a node and lists it (ADR-0009 onboarding)", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("nav-settings").click();
+  await expect(page.getByTestId("registry-row-dgx1")).toBeVisible(); // fake fleet seeds
+
+  await page.getByTestId("node-id").fill("dgxe2e");
+  await page.getByTestId("node-name").fill("dgx-e2e");
+  await page.getByTestId("node-kind").selectOption("spark");
+  await page.getByTestId("node-role").selectOption("worker");
+  await page.getByTestId("node-lanip").fill("10.0.99.99");
+  await page.getByTestId("node-sshuser").fill("piresbruno");
+  await page.getByTestId("node-add").click();
+
+  await expect(page.getByTestId("nodes-message")).toContainText("Node 'dgxe2e' registered");
+  await expect(page.getByTestId("registry-row-dgxe2e")).toContainText("10.0.99.99");
+
+  // Registered node is immediately known to the hub and visible via the API.
+  const nodes = await page.request.get("http://127.0.0.1:5599/api/nodes");
+  const ids = (await nodes.json()).nodes.map((n: { id: string }) => n.id);
+  expect(ids).toContain("dgxe2e");
+});

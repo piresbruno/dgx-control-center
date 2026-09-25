@@ -41,9 +41,9 @@ Proxy body limits: gateway `/v1/*` and the chat message route share `PROXY_BODY_
 
 ## First things to do on a new machine
 
-1. `npm install` then `npm run build` (tsc) and `npm test` — expect **327 passing**.
+1. `npm install` then `npm run build` (tsc) and `npm test` — expect **335 passing**.
 2. `npm run test:e2e` (Playwright; boots its own fake-fleet API + Vite on scratch ports 5599/5199).
-3. `docker compose up -d --build` — restore `config/` from backup for existing state, or seed `config/nodes.json` fresh (see README quickstart; `createdAt` is required).
+3. `docker compose up -d --build` — restore `config/` from backup for existing state, or seed `config/nodes.json` fresh (see README quickstart; `createdAt` is required — or skip seeding and add nodes from **Settings → Nodes**).
 4. Agents: start both per the topology above; they self-adopt server config from `welcome`/`config-update`.
 5. **Manual (one-time, needs sudo on the node)** — clock apply requires the `cc-clock` helper + sudoers entry; instructions in RUNBOOKS.md and `docs/DEVELOPMENT_STATUS.md` history.
 6. **Roadmap complete** — nothing pending in `PLAN.md`; operations live in `RUNBOOKS.md`, architecture in `docs/ARCHITECTURE.md`.

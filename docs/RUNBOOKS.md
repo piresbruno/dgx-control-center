@@ -6,7 +6,8 @@ Operational procedures. Each section names its milestone; unfilled sections are 
 
 Goal: healthy agent on every DGX, `Restart=always`, watchdog enabled.
 
-- Server issues the `install-agent` job over SSH (key auth preferred): upload bundled `agent/dist/main.js` → ensure Node ≥22 → write `~/.controlcenter/agent/config.json` (dashboard URL, token, sparkId) → systemd **system** unit → wait for first `hello`.
+- Register the node first — **Settings → Nodes** in the UI (`POST /api/nodes`) replaces hand-editing `nodes.json`; the hub refuses agents with unknown sparkIds (close 4003), so registration always precedes connection.
+- Server issues the `install-agent` job over SSH (key auth preferred): upload bundled `agent/dist/main.js` → ensure Node ≥22 → write `~/.controlcenter/agent/config.json` (dashboard URL, token, sparkId) → systemd **system** unit → wait for first `hello`. UI: **Install agent** button next to the node in Settings (needs lanIp + sshUser).
 - Verify: node page shows transport `Agent vX` and state `consistent`; connectivity test passes.
 - Repair: re-run install job (idempotent, `--force` redeploys the bundle). Diagnose via `journalctl -u controlcenter-agent`.
 
