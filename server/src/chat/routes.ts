@@ -7,6 +7,7 @@ import { RequestRecorder } from "../gateway/recorder.js";
 import type { TracesStore } from "../stores/tracesStore.js";
 import { ChatStore, MAX_ATTACHMENT_BYTES, deriveTitle, type ChatMessage } from "./store.js";
 import { SseAccumulator, parseCompletionBody } from "./sse.js";
+import { PROXY_BODY_LIMIT_BYTES } from "../proxyBodyLimit.js";
 
 /**
  * Chat surface (M8): folder/conversation CRUD plus the completions proxy.
@@ -185,14 +186,12 @@ export function registerChatRoutes(app: FastifyInstance, deps: ChatRouteDeps): v
   });
 
   // ── messages + completions proxy ───────────────────────────────────────
-  // Fastify's 1 MiB default body limit rejects base64-encoded 8 MiB images
-  // (~10.7 MB JSON) before the handler runs: the socket closes mid-upload,
-  // clients observe EPIPE instead of the 413, and the handler's oversized
-  // branch becomes unreachable. Room for several max-size attachments.
-  const MESSAGE_BODY_LIMIT = 48 * 1024 * 1024;
+  // PROXY_BODY_LIMIT_BYTES keeps base64-encoded 8 MiB images (~10.7 MB JSON
+  // each) under Fastify's route limit so the handler enforces the
+  // per-attachment cap itself instead of the socket dying mid-upload.
   app.post(
     "/api/chat/conversations/:id/messages",
-    { bodyLimit: MESSAGE_BODY_LIMIT },
+    { bodyLimit: PROXY_BODY_LIMIT_BYTES },
     async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = request.body as {

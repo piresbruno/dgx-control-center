@@ -20,7 +20,8 @@ _Last updated: 2026-09-25. Branch `main`. 327 tests, ~85 % lines coverage (gate 
 
 - **Live clock apply** needs the one-time `cc-clock` sudoers install on a node (manual two-line step; documented in RUNBOOKS).
 - **GLM TP=2 deployment is parked** (containers removed) — start it from the Serve page when wanted.
-- **Gateway `/v1/*` body limit**: external gateway clients sending vision payloads larger than Fastify's default 1 MiB body hit the same mid-upload EPIPE the chat route had; the chat message route now sets `bodyLimit: 48 MiB` (`server/src/chat/routes.ts`), `/v1/*` still uses the default. Raise it there when a keyed client needs large image uploads.
+
+Proxy body limits: gateway `/v1/*` and the chat message route share `PROXY_BODY_LIMIT_BYTES` (48 MiB, `server/src/proxyBodyLimit.ts`) so base64 image payloads are rejected by the handler, not by Fastify's 1 MiB default (which closed the socket mid-upload — clients saw EPIPE instead of 413).
 
 ### M8 Chat UI (done, gate passed)
 

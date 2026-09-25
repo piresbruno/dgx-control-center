@@ -516,6 +516,25 @@ describe("gateway /v1 + analysis API (M4)", () => {
     await app.close();
   });
 
+  it("accepts vision payloads above Fastify's default 1 MiB body limit", async () => {
+    const { app, traces, key } = await gatewayApp();
+    // ~2 MiB base64 image: the old default bodyLimit would 413 this before
+    // the handler ran (closing the socket mid-upload — client EPIPE).
+    const bigImage = `data:image/png;base64,${Buffer.alloc(1.5 * 1024 * 1024, 7).toString("base64")}`;
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+      payload: {
+        model: "glm",
+        messages: [{ role: "user", content: [{ type: "image_url", image_url: { url: bigImage } }] }],
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(traces.count()).toBe(1);
+    await app.close();
+  });
+
   it("401s bad keys (no trace recorded) and 404s unknown aliases with served list", async () => {
     const { app, traces, key } = await gatewayApp();
     const bad = await app.inject({ method: "POST", url: "/v1/chat/completions", headers: { authorization: "Bearer nope" }, payload: { model: "glm" } });

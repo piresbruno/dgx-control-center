@@ -16,6 +16,7 @@ import { checkMultiNode } from "./serving/multiNode.js";
 import { ServedModelsStore, type ServedModelTarget } from "./gateway/servedModels.js";
 import { ClientsStore } from "./gateway/clients.js";
 import { handleGatewayRequest, healthFromState } from "./gateway/gateway.js";
+import { PROXY_BODY_LIMIT_BYTES } from "./proxyBodyLimit.js";
 import { registerChatRoutes } from "./chat/routes.js";
 import type { ChatStore } from "./chat/store.js";
 import { TracesStore } from "./stores/tracesStore.js";
@@ -632,7 +633,7 @@ if (alertsStore && alertRulesStore) {
           : null;
       app.decorate("onDemand", onDemand);
 
-      app.all("/v1/*", async (request, reply) => {
+      app.all("/v1/*", { bodyLimit: PROXY_BODY_LIMIT_BYTES }, async (request, reply) => {
         const rest = (request.params as Record<string, string>)["*"] ?? "";
         const body = typeof request.body === "string" ? request.body : request.body != null ? JSON.stringify(request.body) : null;
         const recorder = new RequestRecorder();
