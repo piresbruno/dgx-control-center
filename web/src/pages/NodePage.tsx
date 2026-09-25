@@ -52,7 +52,7 @@ export function NodePage({ node, nodes, history, onSelectNode }: NodePageProps) 
         <Kpi label="Power" value={wattsOr(power?.["watts"])} delta={storage ? `${storage["freeGb"]} GB free` : "—"} />
       </div>
 
-      <div className="grid cols-2" style={{ marginTop: 18 }}>
+      <div className="grid cols-3" style={{ marginTop: 18 }}>
         <Panel title="GPU">
           <GaugeRow label="util" value={pctOr(gpu?.["utilPct"])} />
           <GaugeRow label="mem" value={mbPctOr(gpu?.["memUsedMb"], gpu?.["memTotalMb"])} />

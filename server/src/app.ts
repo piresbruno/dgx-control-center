@@ -505,7 +505,7 @@ if (alertsStore && alertRulesStore) {
       const node = nodeDirectory.get(id);
       if (!node) return reply.code(404).send({ error: "unknown node" });
       if (!node.lanIp || !node.sshUser) {
-        return reply.code(400).send({ error: "node lacks lanIp or sshUser — set them in Edit node" });
+        return reply.code(400).send({ error: "node lacks lanIp or sshUser — set them in Settings → Nodes" });
       }
       const transport =
         opts.provisionTransport ??
@@ -520,7 +520,7 @@ if (alertsStore && alertRulesStore) {
       const node = nodeDirectory.get(id);
       if (!node) return reply.code(404).send({ error: "unknown node" });
       if (!node.lanIp || !node.sshUser) {
-        return reply.code(400).send({ error: "node lacks lanIp or sshUser — set them in Edit node" });
+        return reply.code(400).send({ error: "node lacks lanIp or sshUser — set them in Settings → Nodes" });
       }
       const transport =
         opts.provisionTransport ??
@@ -535,7 +535,7 @@ if (alertsStore && alertRulesStore) {
       const node = nodeDirectory.get(id);
       if (!node) return reply.code(404).send({ error: "unknown node" });
       if (!node.lanIp || !node.sshUser) {
-        return reply.code(400).send({ error: "node lacks lanIp or sshUser — set them in Edit node" });
+        return reply.code(400).send({ error: "node lacks lanIp or sshUser — set them in Settings → Nodes" });
       }
       const runNode =
         opts.nodeInventoryRunner ??
@@ -934,7 +934,7 @@ if (alertsStore && alertRulesStore) {
         const node = nodeDirectory.get(id);
         if (!node) return reply.code(404).send({ error: "unknown node" });
         if (!node.lanIp || !node.sshUser) {
-          return reply.code(400).send({ error: "node lacks lanIp or sshUser — set them in Edit node" });
+          return reply.code(400).send({ error: "node lacks lanIp or sshUser — set them in Settings → Nodes" });
         }
         const bundle = await readFile(bundlePath, "utf8").catch(() => null);
         if (bundle === null) {

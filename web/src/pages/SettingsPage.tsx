@@ -170,9 +170,10 @@ export function SettingsPage() {
       <section className="panel">
         <div className="panel-head"><h2>Retention</h2></div>
         <div className="panel-body" style={{ display: "grid", gap: 10 }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            Trace retention (days)
+          <label className="field">
+            <span className="field-label">Trace retention (days)</span>
             <input
+              className="input"
               type="number"
               min={1}
               max={365}
@@ -182,9 +183,10 @@ export function SettingsPage() {
               style={{ width: 90 }}
             />
           </label>
-          <label style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            Backups to keep
+          <label className="field">
+            <span className="field-label">Backups to keep</span>
             <input
+              className="input"
               type="number"
               min={1}
               max={100}
@@ -219,6 +221,8 @@ export function SettingsPage() {
         <div className="panel-body" style={{ display: "grid", gap: 8 }}>
           <div className="hint">Exact-origin allowlist for browser access (empty = same-origin only, never "*").</div>
           <textarea
+            className="input"
+            style={{ width: "100%", maxWidth: 640 }}
             value={originsDraft || (settings?.corsOrigins ?? []).join("\n")}
             onChange={(e) => setOriginsDraft(e.target.value)}
             rows={3}
@@ -270,20 +274,20 @@ export function SettingsPage() {
           ))}
           {nodes !== null && nodes.length === 0 && <div className="empty">No nodes registered yet.</div>}
           <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", borderTop: "1px solid var(--hairline)", paddingTop: 10 }}>
-            <input data-testid="node-id" placeholder="id (dgx3)" value={draft.id} onChange={(e) => setDraft((d) => ({ ...d, id: e.target.value }))} />
-            <input data-testid="node-name" placeholder="name (dgx-3)" value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} />
-            <select data-testid="node-kind" value={draft.kind} onChange={(e) => setDraft((d) => ({ ...d, kind: e.target.value }))} aria-label="Kind">
+            <input className="input" data-testid="node-id" placeholder="id (dgx3)" value={draft.id} onChange={(e) => setDraft((d) => ({ ...d, id: e.target.value }))} />
+            <input className="input" data-testid="node-name" placeholder="name (dgx-3)" value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} />
+            <select className="input" data-testid="node-kind" value={draft.kind} onChange={(e) => setDraft((d) => ({ ...d, kind: e.target.value }))} aria-label="Kind">
               <option value="spark">spark</option>
               <option value="gpu-host">gpu-host</option>
               <option value="nas">nas</option>
             </select>
-            <select data-testid="node-role" value={draft.role} onChange={(e) => setDraft((d) => ({ ...d, role: e.target.value }))} aria-label="Role">
+            <select className="input" data-testid="node-role" value={draft.role} onChange={(e) => setDraft((d) => ({ ...d, role: e.target.value }))} aria-label="Role">
               <option value="head">head</option>
               <option value="worker">worker</option>
               <option value="standalone">standalone</option>
             </select>
-            <input data-testid="node-lanip" placeholder="lanIp" value={draft.lanIp} onChange={(e) => setDraft((d) => ({ ...d, lanIp: e.target.value }))} />
-            <input data-testid="node-sshuser" placeholder="sshUser" value={draft.sshUser} onChange={(e) => setDraft((d) => ({ ...d, sshUser: e.target.value }))} />
+            <input className="input" data-testid="node-lanip" placeholder="lanIp" value={draft.lanIp} onChange={(e) => setDraft((d) => ({ ...d, lanIp: e.target.value }))} />
+            <input className="input" data-testid="node-sshuser" placeholder="sshUser" value={draft.sshUser} onChange={(e) => setDraft((d) => ({ ...d, sshUser: e.target.value }))} />
             <button className="btn sm primary" data-testid="node-add" onClick={() => void addNode()}>Add node</button>
           </div>
           {nodeMessage && <div className="hint" data-testid="nodes-message">{nodeMessage}</div>}

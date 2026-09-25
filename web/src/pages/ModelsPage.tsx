@@ -145,7 +145,7 @@ function CatalogTab(props: {
         </div>
         <div className="panel-body flush">
           {props.error ? (
-            <div style={{ padding: 18, color: "var(--crit)" }}>{props.error}</div>
+            <div style={{ padding: 18, color: "var(--crit)" }}>Store inventory failed — {props.error}</div>
           ) : (
             <table className="table" data-testid="catalog-table">
               <thead>

@@ -133,7 +133,7 @@ function RulesTable({ rules, onChanged }: { rules: AlertRule[]; onChanged: () =>
         <tbody>
           {rules.map((r) => (
             <tr key={r.id} data-testid={`rule-${r.id}`}>
-              <td><strong>{r.name}</strong>{r.seed && <span className="chip">seed</span>}</td>
+              <td><strong>{r.name}</strong>{r.seed && <span className="chip" style={{ marginLeft: 6 }}>seed</span>}</td>
               <td className="hint" style={{ fontSize: 11 }}>
                 {r.condition.source === "node-metric"
                   ? `${r.condition.path} ${r.condition.op} ${r.condition.value} for ${Math.round(r.condition.forMs / 60_000)}m`

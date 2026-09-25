@@ -116,7 +116,9 @@ body {
 .cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .panel-head { display: flex; align-items: center; gap: 10px; padding: 13px 18px; border-bottom: 1px solid var(--hairline); }
-.panel-head h3 { font-size: 13px; margin: 0; }
+.panel-head h1, .panel-head h2, .panel-head h3 {
+  font-size: 13px; font-weight: 600; margin: 0; letter-spacing: 0.01em; color: var(--text-1);
+}
 .panel-head .sub { color: var(--text-3); font-size: 11.5px; }
 .panel-head .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
 .panel-body { padding: 18px; }
@@ -158,18 +160,24 @@ body {
 [data-theme="dark"] .btn.primary { background: #e7ebf2; color: #10151d; }
 .btn.danger { color: var(--crit); border-color: var(--crit); background: var(--surface); }
 .btn.sm { padding: 5px 9px; font-size: 11.5px; }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.ghost:hover { background: var(--raised); }
 
-table.dt { width: 100%; border-collapse: collapse; font-size: 13px; }
-.dt th {
+/* Label + control rows that align across a panel (Settings, forms). */
+.field { display: flex; align-items: center; gap: 12px; }
+.field > label, .field > .field-label { flex: 0 0 230px; color: var(--text-2); font-size: 13px; }
+
+table.dt, table.table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.dt th, .table th {
   text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--text-3); font-weight: 600; padding: 10px 18px;
   border-bottom: 1px solid var(--hairline); background: var(--raised);
 }
-.dt td { padding: 11px 18px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
-.dt tr:last-child td { border-bottom: none; }
-.dt tbody tr:hover td { background: var(--raised); }
-.dt td.num, .dt th.num { text-align: right; font-family: var(--font-mono); font-size: 12px; }
-.dt .strong { font-weight: 600; }
+.dt td, .table td { padding: 11px 18px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
+.dt tr:last-child td, .table tr:last-child td { border-bottom: none; }
+.dt tbody tr:hover td, .table tbody tr:hover td { background: var(--raised); }
+.dt td.num, .dt th.num, .table td.num, .table th.num { text-align: right; font-family: var(--font-mono); font-size: 12px; }
+.dt .strong, .table .strong { font-weight: 600; }
 
 .meter { height: 6px; border-radius: 3px; background: var(--overlay); overflow: hidden; }
 .meter i { display: block; height: 100%; border-radius: 3px; }
@@ -198,8 +206,8 @@ table.dt { width: 100%; border-collapse: collapse; font-size: 13px; }
   .cols-2 { grid-template-columns: 1fr; }
   .panel-head, .panel-body { padding-left: 14px; padding-right: 14px; }
   .panel-body.flush { overflow-x: auto; }
-  .dt { min-width: 620px; }
-  .dt th, .dt td { white-space: nowrap; }
+  .dt, .table { min-width: 620px; }
+  .dt th, .dt td, .table th, .table td { white-space: nowrap; }
   .topbar { padding: 0 14px; }
 }
 @media (max-width: 560px) {

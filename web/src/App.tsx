@@ -33,7 +33,7 @@ const NAV: Array<{ sec?: string; id?: PageId; label?: string }> = [
   { id: "energy", label: "Energy" },
   { id: "alerts", label: "Alerts" },
   { id: "fleet", label: "Fleet explorer" },
-  { sec: "Coming in later milestones" },
+  { sec: "System" },
   { id: "settings", label: "Settings" },
 ];
 

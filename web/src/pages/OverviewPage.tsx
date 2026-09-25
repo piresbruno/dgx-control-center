@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { LiveNode } from "../api/ws.js";
 import { nodeSummary, statusPill } from "../App.js";
 
@@ -8,6 +9,14 @@ export interface OverviewProps {
   onSelectNode(id: string): void;
 }
 
+interface DeploymentRow {
+  desired: string;
+}
+
+interface AnalysisSummary {
+  kpis: { requests: number; errors: number };
+}
+
 export function OverviewPage({ nodes, history, connected, onSelectNode }: OverviewProps) {
   const online = nodes.filter((n) => n.state !== "offline" && n.state !== "provisioning");
   const totalWatts = nodes.reduce((sum, n) => {
@@ -15,6 +24,35 @@ export function OverviewPage({ nodes, history, connected, onSelectNode }: Overvi
     const watts = typeof power === "object" && power !== null ? (power as Record<string, unknown>)["watts"] : undefined;
     return sum + (typeof watts === "number" ? watts : 0);
   }, 0);
+
+  const [deployments, setDeployments] = useState<DeploymentRow[]>([]);
+  const [summary, setSummary] = useState<AnalysisSummary | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const load = async (): Promise<void> => {
+      try {
+        const d = await fetch("/api/serve/deployments").then((r) => (r.ok ? r.json() : null));
+        if (alive && d) setDeployments(Array.isArray(d) ? d : (d.deployments ?? []));
+      } catch {
+        // Overview tolerates partial data.
+      }
+      try {
+        const s = await fetch("/api/analysis/summary?windowHours=24").then((r) => (r.ok ? r.json() : null));
+        if (alive && s) setSummary(s as AnalysisSummary);
+      } catch {
+        // Ditto.
+      }
+    };
+    void load();
+    const t = setInterval(() => void load(), 15_000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, []);
+
+  const serving = deployments.filter((d) => d.desired === "running").length;
 
   return (
     <>
@@ -31,15 +69,15 @@ export function OverviewPage({ nodes, history, connected, onSelectNode }: Overvi
           <div className="value">{online.length}<small> / {nodes.length || "…"}</small></div>
           <div className="delta">{connected ? "live feed" : "reconnecting…"}</div>
         </div>
-        <div className="panel kpi">
+        <div className="panel kpi" data-testid="kpi-serving">
           <div className="label">Models serving</div>
-          <div className="value">—</div>
-          <div className="delta dim">arrives with M3 deployments</div>
+          <div className="value">{serving}<small> / {deployments.length || "…"}</small></div>
+          <div className="delta dim">{deployments.length > 0 ? "desired running / registered" : "no deployments yet"}</div>
         </div>
-        <div className="panel kpi">
-          <div className="label">Requests / min</div>
-          <div className="value">—</div>
-          <div className="delta dim">arrives with the M4 gateway</div>
+        <div className="panel kpi" data-testid="kpi-requests">
+          <div className="label">Requests (24 h)</div>
+          <div className="value">{summary ? summary.kpis.requests : "—"}</div>
+          <div className="delta dim">{summary ? `${summary.kpis.errors} errors` : "no gateway traffic yet"}</div>
         </div>
         <div className="panel kpi">
           <div className="label">Power now</div>
@@ -51,7 +89,7 @@ export function OverviewPage({ nodes, history, connected, onSelectNode }: Overvi
       <div className="grid cols-3" style={{ marginTop: 18 }}>
         {nodes.length === 0 && (
           <div className="panel" style={{ gridColumn: "1 / -1" }}>
-            <div className="panel-body"><div className="empty">No nodes connected yet — start the server with --fake-fleet or install an agent on a DGX.</div></div>
+            <div className="panel-body"><div className="empty">No nodes connected yet — register one under Settings → Nodes, then install its agent.</div></div>
           </div>
         )}
         {nodes.map((node) => (
