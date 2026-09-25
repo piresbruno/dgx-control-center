@@ -15,7 +15,7 @@ export default defineConfig({
   use: { baseURL: "http://127.0.0.1:5199" },
   webServer: [
     {
-      command: `sh -c 'mkdir -p ${scratch}/config && cd ${scratch} && PORT=5599 ${repo}/node_modules/.bin/tsx ${repo}/server/src/index.ts --fake-fleet'`,
+      command: `sh -c 'rm -rf ${scratch} && mkdir -p ${scratch}/config && cd ${scratch} && PORT=5599 ${repo}/node_modules/.bin/tsx ${repo}/server/src/index.ts --fake-fleet'`,
       url: "http://127.0.0.1:5599/api/health",
       reuseExistingServer: false,
       timeout: 90_000,

@@ -1,6 +1,7 @@
 import { buildApp } from "./app.js";
 import { serverEnvSchema } from "./config.js";
 import { fakeFleetHubDeps, startFakeFleet, type FakeFleetHandle } from "./fakeFleet.js";
+import { fakeJobBehavior, seedMockData } from "./mockData.js";
 import type { AgentToServer } from "@cc/shared";
 import { NodeDirectory } from "./nodeDirectory.js";
 import { DesiredStateStore } from "./desiredState.js";
@@ -78,9 +79,12 @@ const broadcast = (): void => {
 
 if (fakeFleet) {
   // The fake fleet must be registered nodes so the reconciler tracks them.
-  await directory.upsert({ id: "dgx1", name: "dgx1", kind: "spark", role: "head", llmPorts: [8888], lanIp: "127.0.0.1" });
-  await directory.upsert({ id: "dgx2", name: "dgx2", kind: "spark", role: "worker", llmPorts: [8889], lanIp: "127.0.0.1" });
-  await directory.upsert({ id: "nas1", name: "nas1", kind: "nas", role: "standalone", lanIp: "127.0.0.1" });
+  // All lanIps stay 127.0.0.1: the gateway proxies engine traffic to lanIp, so
+  // it must be the loopback the stub engines bind. Fake mode never opens SSH,
+  // but the SSH-seam routes need sshUser present; per-node values key the seam.
+  await directory.upsert({ id: "dgx1", name: "dgx1", kind: "spark", role: "head", llmPorts: [8888], lanIp: "127.0.0.1", sshUser: "fake-dgx1" });
+  await directory.upsert({ id: "dgx2", name: "dgx2", kind: "spark", role: "worker", llmPorts: [8889], lanIp: "127.0.0.1", sshUser: "fake-dgx2" });
+  await directory.upsert({ id: "nas1", name: "nas1", kind: "nas", role: "standalone", lanIp: "127.0.0.1", sshUser: "fake-nas1" });
 }
 
 // ── Thermal guard (M5): auto-derate on GPU heat, revert on sustained recovery ──
@@ -212,6 +216,32 @@ const app = buildApp({
   traceQueries,
   upstreamAuth: env.CC_UPSTREAM_AUTH ?? null,
   sshIdentity: env.CC_SSH_IDENTITY,
+  // Fake fleet: the SSH seams answer from canned outputs instead of SSH.
+  ...(fakeFleet
+    ? {
+        nodeInventoryRunner: async (_host: string, user: string, args: string[]): Promise<string> => {
+          const sparkId = user === "fake-dgx2" ? "dgx2" : user === "fake-nas1" ? "nas1" : "dgx1";
+          const behavior = fakeJobBehavior(sparkId, ["modelctl", ...args]);
+          return behavior?.output?.[0] ?? "[]";
+        },
+        provisionTransport: async (script: string) => ({
+          exitCode: 0,
+          stdout: script.includes("uv tool install")
+            ? '__CC_MODELCTL__:{"ok":true,"mode":"installed","version":"modelctl 0.5.2","reason":null}\n'
+            : '__CC_MODELCTL__:{"ok":true,"mode":"present","version":"modelctl 0.5.2","reason":null}\n',
+          stderr: "",
+        }),
+        // Install/upgrade-agent buttons: succeed via the marker protocol with
+        // no SSH. The fake node is already connected, so waitHello passes.
+        installTransport: {
+          run: async () => ({
+            exitCode: 0,
+            stdout: '__CC_INSTALL__:{"ok":true,"mode":"user","reason":null}\n',
+            stderr: "",
+          }),
+        },
+      }
+    : {}),
 });
 const onDemand = (app as unknown as { onDemand: { startSweeper(): () => void } | undefined }).onDemand;
 onDemand?.startSweeper();
@@ -282,7 +312,17 @@ app
   .then(async (address) => {
     app.log.info(`ControlCenter ${address} · db ${env.CC_DB_PATH}${fakeFleet ? " · FAKE FLEET" : ""}`);
     if (fakeFleet) {
-      fleet = await startFakeFleet(`${address.replace("[::1]", "127.0.0.1")}/agent-ws`);
+      seedMockData({
+        metrics: metricsStore,
+        traces: tracesStore,
+        alerts: alertsStore,
+        clients: clientsStore,
+        servedModels: servedModelsStore,
+        recipes: recipeStore,
+        deployments: deploymentStore,
+        chat: chatStore,
+      });
+      fleet = await startFakeFleet(`${address.replace("[::1]", "127.0.0.1")}/agent-ws`, 1000, fakeJobBehavior);
     }
   })
   .catch((err) => {
