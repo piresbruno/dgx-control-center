@@ -176,7 +176,7 @@ export function SettingsPage() {
         </div>
       </section>
 
-      <section className="panel mt">
+      <section className="panel">
         <div className="panel-head"><h2>Capture</h2></div>
         <div className="panel-body">
           <FormGrid>
@@ -198,7 +198,7 @@ export function SettingsPage() {
         </div>
       </section>
 
-      <section className="panel mt">
+      <section className="panel">
         <div className="panel-head"><h2>CORS origins</h2></div>
         <div className="panel-body stack">
           <div className="hint">Exact-origin allowlist for browser access (empty = same-origin only, never "*").</div>
@@ -220,7 +220,7 @@ export function SettingsPage() {
         </div>
       </section>
 
-      <section className="panel mt">
+      <section className="panel">
         <div className="panel-head"><h2>Tokens &amp; secrets</h2></div>
         <div className="panel-body">
           <div className="hint">
@@ -231,7 +231,7 @@ export function SettingsPage() {
         </div>
       </section>
 
-      <section className="panel mt">
+      <section className="panel">
         <div className="panel-head"><h2>Nodes</h2></div>
         <div className="panel-body stack">
           <div className="hint">
@@ -282,7 +282,7 @@ export function SettingsPage() {
         </div>
       </section>
 
-      <section className="panel mt">
+      <section className="panel">
         <div className="panel-head"><h2>System</h2></div>
         <div className="panel-body stack">
           <Toolbar>
@@ -303,19 +303,21 @@ export function SettingsPage() {
             <button className="btn sm" onClick={() => void createBackup().then(refresh)}>Create backup</button>
           </Toolbar>
           {maintenance && <div className="hint">{maintenance}</div>}
-          <table className="table" data-testid="backups-table">
-            <thead><tr><th>Backup</th><th>Files</th><th>DB size</th></tr></thead>
-            <tbody>
-              {backups.map((b) => (
-                <tr key={b.id}>
-                  <td>{b.id}</td>
-                  <td>{b.files.length} files</td>
-                  <td>{(b.dbBytes / 1024).toFixed(0)} KiB</td>
-                </tr>
-              ))}
-              {backups.length === 0 && <tr><td colSpan={3} className="hint">No backups yet — create one before upgrading.</td></tr>}
-            </tbody>
-          </table>
+          <TableScroller>
+            <table className="table" data-testid="backups-table">
+              <thead><tr><th>Backup</th><th>Files</th><th>DB size</th></tr></thead>
+              <tbody>
+                {backups.map((b) => (
+                  <tr key={b.id}>
+                    <td>{b.id}</td>
+                    <td>{b.files.length} files</td>
+                    <td>{(b.dbBytes / 1024).toFixed(0)} KiB</td>
+                  </tr>
+                ))}
+                {backups.length === 0 && <tr><td colSpan={3} className="hint">No backups yet — create one before upgrading.</td></tr>}
+              </tbody>
+            </table>
+          </TableScroller>
         </div>
       </section>
     </>

@@ -126,7 +126,11 @@ export function RouterPage() {
               {(models ?? []).map((m) => (
                 <tr key={m.id} data-testid={`route-${m.alias}`}>
                   <td><span className="strong">{m.alias}</span></td>
-                  <td>{m.targets.map((t) => <span key={`${t.nodeId}:${t.port}`} className="chip">{t.nodeId}:{t.port}</span>)}</td>
+                  <td>
+                    <div className="form-row">
+                      {m.targets.map((t) => <span key={`${t.nodeId}:${t.port}`} className="chip">{t.nodeId}:{t.port}</span>)}
+                    </div>
+                  </td>
                   <td className="hint">{m.targets.map((t) => t.modelId ?? "(alias)").join(", ")}</td>
                   <td>
                     {m.onDemand

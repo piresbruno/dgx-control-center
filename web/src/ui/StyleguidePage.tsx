@@ -51,7 +51,7 @@ export function StyleguidePage() {
         </div>
       </section>
 
-      <div className="grid cols-2 mt">
+      <div className="grid cols-2">
         <section className="panel">
           <div className="panel-head"><h2>Buttons</h2></div>
           <div className="panel-body">
@@ -82,7 +82,7 @@ export function StyleguidePage() {
         </section>
       </div>
 
-      <section className="panel mt">
+      <section className="panel">
         <div className="panel-head"><h2>Aligned form (Field / FormGrid)</h2></div>
         <div className="panel-body">
           <FormGrid>
@@ -107,7 +107,7 @@ export function StyleguidePage() {
         </div>
       </section>
 
-      <div className="grid cols-2 mt">
+      <div className="grid cols-2">
         <section className="panel">
           <div className="panel-head"><h2>Segmented + toolbar</h2></div>
           <div className="panel-body stack">
@@ -148,14 +148,14 @@ export function StyleguidePage() {
         </section>
       </div>
 
-      <section className="panel mt">
+      <section className="panel">
         <div className="panel-head"><h2>Callouts</h2></div>
         <div className="panel-body stack tight">
           {SEV.map((k) => <Callout key={k} kind={k}>{k} — message banner (crit renders role=alert)</Callout>)}
         </div>
       </section>
 
-      <div className="grid cols-2 mt">
+      <div className="grid cols-2">
         <section className="panel">
           <div className="panel-head"><h2>Table (DataTable pattern)</h2></div>
           <div className="panel-body flush">
@@ -182,7 +182,7 @@ export function StyleguidePage() {
         </section>
       </div>
 
-      <section className="panel mt">
+      <section className="panel">
         <div className="panel-head"><h2>Empty state</h2></div>
         <div className="panel-body">
           <EmptyState action={<button className="btn sm primary">Add node</button>}>

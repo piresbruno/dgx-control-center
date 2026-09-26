@@ -12,7 +12,7 @@ import {
   type ScheduleRow,
   type ThermalStatus,
 } from "../api/power.js";
-import { ErrorBanner, Kpi, TableScroller } from "../ui/index.js";
+import { ErrorBanner, Kpi, TableScroller, Toolbar } from "../ui/index.js";
 
 function kwh(n: number): string {
   return n >= 1 ? `${n.toFixed(2)} kWh` : `${(n * 1000).toFixed(0)} Wh`;
@@ -134,30 +134,26 @@ export function EnergyPage() {
 
   return (
     <>
-      <section className="panel">
-        <div className="panel-head">
-          <h2>Energy</h2>
-          <div className="right">
-            <select value={windowHours} onChange={(e) => setWindowHours(Number(e.target.value))} aria-label="Window">
-              <option value={24}>24 h</option>
-              <option value={168}>7 d</option>
-              <option value={720}>30 d</option>
-            </select>
-            <button className="btn sm" onClick={exportCsv}>Export CSV</button>
-          </div>
+      <div className="page-head">
+        <div className="page-title">
+          <h1>Energy</h1>
+          <div className="sub">Power draw and cost across the fleet</div>
         </div>
-        <div className="panel-body">
-          <div className="grid cols-2">
-            <Kpi label="total energy" value={summary ? kwh(summary.totalKwh) : "—"} />
-            <Kpi label="total cost" value={summary ? summary.totalCost.toFixed(2) : "—"} />
-          </div>
-        </div>
-        {error && (
-          <div className="panel-body">
-            <ErrorBanner error={error} />
-          </div>
-        )}
-      </section>
+        <Toolbar>
+          <select value={windowHours} onChange={(e) => setWindowHours(Number(e.target.value))} aria-label="Window">
+            <option value={24}>24 h</option>
+            <option value={168}>7 d</option>
+            <option value={720}>30 d</option>
+          </select>
+          <button className="btn sm" onClick={exportCsv}>Export CSV</button>
+        </Toolbar>
+      </div>
+
+      <div className="grid cols-2">
+        <Kpi label="total energy" value={summary ? kwh(summary.totalKwh) : "—"} />
+        <Kpi label="total cost" value={summary ? summary.totalCost.toFixed(2) : "—"} />
+      </div>
+      {error && <ErrorBanner error={error} />}
 
       <section className="panel">
         <div className="panel-head"><h3>Per node</h3></div>

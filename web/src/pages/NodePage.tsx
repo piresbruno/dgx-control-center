@@ -18,7 +18,7 @@ export function NodePage({ node, nodes, history, onSelectNode }: NodePageProps) 
       <>
         <div className="page-head"><div className="page-title"><h1>Nodes</h1></div></div>
         <div className="panel"><div className="panel-body"><div className="empty">Select a node on the Overview page.</div></div></div>
-        <div className="grid cols-3 mt">
+        <div className="grid cols-3">
           {nodes.map((n) => (
             <button key={n.sparkId} className="panel node-card clickable" onClick={() => onSelectNode(n.sparkId)}>
               <div className="head"><div className="name">{n.name}</div>{statusPill(n.state)}</div>
@@ -53,7 +53,7 @@ export function NodePage({ node, nodes, history, onSelectNode }: NodePageProps) 
         <Kpi label="Power" value={wattsOr(power?.["watts"])} delta={storage ? `${storage["freeGb"]} GB free` : "—"} />
       </div>
 
-      <div className="grid cols-3 mt">
+      <div className="grid cols-3">
         <Panel title="GPU">
           <GaugeRow label="util" value={pctOr(gpu?.["utilPct"])} />
           <GaugeRow label="mem" value={mbPctOr(gpu?.["memUsedMb"], gpu?.["memTotalMb"])} />

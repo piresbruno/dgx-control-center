@@ -217,12 +217,12 @@ export function AlertsPage() {
         <AlertsTable alerts={alerts} onChanged={refresh} />
       </section>
 
-      <section className="panel mt">
+      <section className="panel">
         <div className="panel-head"><h3>Rules</h3><span className="pill info"><span className="dot" />{rules.length}</span></div>
         <RulesTable rules={rules} onChanged={refresh} />
       </section>
 
-      <section className="panel mt">
+      <section className="panel">
         <div className="panel-head"><h3>History</h3></div>
         <TableScroller maxHeight={340}>
           <table className="table" data-testid="alert-events">

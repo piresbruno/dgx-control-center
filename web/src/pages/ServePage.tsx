@@ -236,7 +236,7 @@ export function ServePage() {
       </section>
 
       {(deployments ?? []).map((d) => (
-        <section className="panel mt" key={`console-${d.id}`}>
+        <section className="panel" key={`console-${d.id}`}>
           <div className="panel-head">
             <h3>{recipeOf(d)?.label ?? d.recipeId} — console</h3>
             <StatePill dep={d} />

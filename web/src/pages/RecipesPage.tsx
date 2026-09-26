@@ -208,12 +208,14 @@ export function RecipesPage() {
                   />
                   <td>{r.sparkId}</td>
                   <td>
-                    {r.probeError ? (
-                      <span className="pill crit"><span className="dot" />{r.probeError}</span>
-                    ) : (
-                      <span className="pill ok"><span className="dot" />{r.meta?.class ?? "probing"}</span>
-                    )}
-                    {r.orphaned && <span className="pill warn"><span className="dot" />orphaned</span>}
+                    <div className="form-row">
+                      {r.probeError ? (
+                        <span className="pill crit"><span className="dot" />{r.probeError}</span>
+                      ) : (
+                        <span className="pill ok"><span className="dot" />{r.meta?.class ?? "probing"}</span>
+                      )}
+                      {r.orphaned && <span className="pill warn"><span className="dot" />orphaned</span>}
+                    </div>
                   </td>
                   <td><DriftChip recipe={r} /></td>
                   <ActionTd>

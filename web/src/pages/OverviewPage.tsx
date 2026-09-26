@@ -87,7 +87,7 @@ export function OverviewPage({ nodes, history, connected, onSelectNode }: Overvi
         />
       </div>
 
-      <div className="grid cols-3 mt">
+      <div className="grid cols-3">
         {nodes.length === 0 && (
           <div className="panel col-span-all">
             <div className="panel-body"><div className="empty">No nodes connected yet — register one under Settings → Nodes, then install its agent.</div></div>
