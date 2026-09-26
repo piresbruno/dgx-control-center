@@ -1,6 +1,6 @@
 # Development Status — pick-up-elsewhere note
 
-_Last updated: 2026-09-25. Branch `main`. 348 tests, ~85 % lines coverage (gate 75 %), `.agentic/bin/validate` green, Playwright e2e (9 tests incl. the mock-seam guard) green on the fake fleet._
+_Last updated: 2026-09-26. Branch `main`. 348 tests, ~85 % lines coverage (gate 75 %), `.agentic/bin/validate` green, Playwright e2e (11 tests incl. the mock-seam and mobile-nav guards) green on the fake fleet._
 
 ## Where we are
 
@@ -36,6 +36,7 @@ Proxy body limits: gateway `/v1/*` and the chat message route share `PROXY_BODY_
 - **Data seam**: `web/src/api/client.ts` is the only fetch layer; all 13 pages go through `web/src/api/*` domain modules (no raw `fetch` or local `json()` helpers in pages anymore).
 - **Mock dataset**: `--fake-fleet` now also seeds every previously-empty surface via `server/src/mockData.ts` — gateway clients + ~40 traces (5xx/slow tails), recipes/deployments with coherent probes, served-models (glm-live vision:true), firing+resolved alerts on real rule ids, 7-day gpu-only energy backfill, a chat conversation — deterministic and idempotent. Zero mock logic in `web/`: dropping the flag yields honest empty states (asserted both ways by `e2e/mock-seam.spec.ts`).
 - Fleet-specific copy (`dgx1:8081`, `cc.home.local`, "2× DGX … QNAP") removed from product paths; Overview sub-line and the Router placeholders derive from live data.
+- **2026-09-26 review round:** visual review of all pages (light+dark, 1568/390/320) found spacing drift and two mobile-breaking defects, both fixed as CSS contract: `.page`'s flex gap now owns section rhythm (page-level `.mt` deleted), and `.menu-btn`'s base rule moved before the media override (the hamburger was permanently `display:none` on phones). Settings backups table wrapped in `TableScroller`; odd-count KPI rows self-fill; `.col-act` is flex+gap. `docs/DESIGN_SYSTEM.md` gained the hard rules + a "Recurring defect classes" section; `e2e/mobile.spec.ts` guards the drawer flow and 360px overflow. The fleet explorer's blank charts against the seed were fixed too (`gpus.0.*` seed keys + honest empty-series states).
 
 ## Live stack topology (as deployed on dgx-1)
 

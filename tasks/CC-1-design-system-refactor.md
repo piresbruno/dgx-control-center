@@ -186,7 +186,7 @@ for; documented in the design-system doc.
 ## Validation evidence
 
 - Configuration validation: `.agentic/bin/validate` — passed.
-- Tests: `npx vitest run` — 348/348 (44 files); `npm run test:e2e` — 9/9 incl. `mock-seam.spec.ts` (fake-fleet seeded vs honestly-empty real mode).
+- Tests: `npx vitest run` — 348/348 (44 files); `npm run test:e2e` — 11/11 incl. `mock-seam.spec.ts` (fake-fleet seeded vs honestly-empty real mode) and `mobile.spec.ts` (360px drawer + overflow contract, added in the 2026-09-26 review round).
 - Build: `npm run build` — rc 0 (shared+server+web).
 - Documentation check: `.agentic/bin/docs-check` — passed (heuristic API/config advisories only; no server API or config contract changed).
 - Token audit: every `var(--*)` used in `web/src` is defined in `pulse.css`; `.row.between`/`.doctor-row`/`.btn.ghost` now have real definitions.
