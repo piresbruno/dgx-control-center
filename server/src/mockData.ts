@@ -435,13 +435,17 @@ function seedEnergy(deps: SeedDeps, now: number): void {
     for (const [nodeId, idleW] of nodes) {
       const load = nodeId === "dgx1" ? day : day * 0.8;
       const watts = Math.round(idleW + load * 210 * wiggle);
+      const utilPct = Math.round(load * 90);
+      const tempC = Math.min(76, 52 + Math.round(load * 24)); // ≤76: thermal guard (≥78) must never fire
       deps.metrics.ingest(nodeId, {
         ts,
         domains: {
           gpu: {
-            utilPct: Math.round(load * 90),
-            tempC: Math.min(76, 52 + Math.round(load * 24)), // ≤76: thermal guard (≥78) must never fire
-            gpus: { "0": { watts } },
+            utilPct,
+            tempC,
+            // Real agents report per-GPU fields under gpus.<idx> (agent/src/
+            // collectors.ts); the fleet explorer leaves read gpus.0.*.
+            gpus: { "0": { utilPct, tempC, watts, clockMhz: Math.round(1200 + load * 900) } },
           },
         },
       });

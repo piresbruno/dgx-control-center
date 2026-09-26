@@ -111,21 +111,27 @@ export function FleetExplorerPage() {
       <section className="panel">
         <div className="panel-head"><h3>{domain.label} — {domain.leaves.find((l) => l.path === leaf)?.label ?? leaf}</h3></div>
         <div className="panel-body stack">
-          {(data?.series ?? []).map((s, i) => {
-            const last = s.points[s.points.length - 1]?.v;
-            return (
-              <div key={s.nodeId} data-testid={`fleet-chart-${s.nodeId}`}>
-                <div className="row between">
-                  <strong>{s.nodeId}</strong>
-                  <span className="hint">last: {last != null ? last.toFixed(1) : "—"}</span>
-                </div>
-                <Chart series={s} color={COLORS[i % COLORS.length]!} />
-              </div>
-            );
-          })}
-          {data && data.series.length === 0 && (
+          {data && (data.series.length === 0 || data.series.every((s) => s.points.length < 2)) && (
             <div className="empty">No samples in this window for {domain.label}.</div>
           )}
+          {data &&
+            data.series.some((s) => s.points.length >= 2) &&
+            data.series.map((s, i) => {
+              const last = s.points[s.points.length - 1]?.v;
+              return (
+                <div key={s.nodeId} data-testid={`fleet-chart-${s.nodeId}`}>
+                  <div className="row between">
+                    <strong>{s.nodeId}</strong>
+                    {last != null && <span className="hint">last: {last.toFixed(1)}</span>}
+                  </div>
+                  {s.points.length >= 2 ? (
+                    <Chart series={s} color={COLORS[i % COLORS.length]!} />
+                  ) : (
+                    <div className="hint">no samples in this window</div>
+                  )}
+                </div>
+              );
+            })}
         </div>
       </section>
     </>

@@ -45,6 +45,11 @@ test("fake fleet: every previously-empty page has seeded data", async ({ page, r
 
   await page.getByTestId("nav-models").click();
   await expect(page.getByTestId("catalog-table")).toContainText("GLM-5.3-Flash");
+
+  // Fleet charts only render an svg when the leaf paths match the seeded
+  // metric keys — guards the explorer against seed/collector key drift.
+  await page.getByTestId("nav-fleet").click();
+  await expect(page.getByTestId("fleet-chart-dgx1").locator("svg path")).toBeVisible();
 });
 
 test("real mode (no flag): the same routes are honestly empty", async () => {
@@ -97,6 +102,7 @@ test("real mode (no flag): the same routes are honestly empty", async () => {
     expect((await get("/api/gateway/served-models")).models).toEqual([]);
     expect((await get("/api/serve/deployments")).deployments).toEqual([]);
     expect((await get("/api/recipes")).recipes).toEqual([]);
+    expect((await get("/api/metrics/fleet?domain=gpu&leaf=gpus.0.tempC&hours=24")).series).toEqual([]);
   } finally {
     try {
       process.kill(-server.pid!, "SIGKILL"); // whole group
