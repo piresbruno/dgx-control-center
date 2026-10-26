@@ -4,6 +4,16 @@
 
 Describe the required outcome.
 
+## Product manager summary
+
+<!-- Filled by the PM / ticket author before implementation starts. -->
+
+- **One-liner:** [What this ticket delivers, in one plain sentence]
+- **User value:** [What the user/customer gains or avoids]
+- **Business impact:** [Revenue, cost, compliance, or strategic impact]
+- **Success metric:** [Observable signal that this worked]
+- **Dependencies & constraints:** [Blocking tickets, deadlines, regulatory constraints]
+
 ## Acceptance criteria
 
 - [ ] Criterion
